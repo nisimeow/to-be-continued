@@ -1,65 +1,83 @@
-import Image from "next/image";
+'use client';
 
-export default function Home() {
+import { useState, useEffect } from 'react';
+import { storage } from '@/lib/utils';
+import { Chatbot } from '@/lib/types';
+import ChatbotCard from '@/components/dashboard/ChatbotCard';
+import EmptyState from '@/components/dashboard/EmptyState';
+import CreateChatbotDialog from '@/components/dashboard/CreateChatbotDialog';
+import { Button } from '@/components/ui/button';
+import { Plus } from 'lucide-react';
+import { toast } from 'sonner';
+
+export default function HomePage() {
+  const [chatbots, setChatbots] = useState<Chatbot[]>([]);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+
+  useEffect(() => {
+    setChatbots(storage.getChatbots());
+  }, []);
+
+  const handleCreate = (name: string) => {
+    const newChatbot: Chatbot = {
+      id: Date.now().toString(),
+      name,
+      colors: {
+        primary: '#3B82F6',
+        secondary: '#1E40AF',
+        text: '#1F2937'
+      },
+      createdAt: new Date().toISOString()
+    };
+    const updated = [...chatbots, newChatbot];
+    storage.saveChatbots(updated);
+    setChatbots(updated);
+    setIsDialogOpen(false);
+    toast.success('Chatbot created successfully!');
+  };
+
+  const handleDelete = (id: string) => {
+    const updated = chatbots.filter(c => c.id !== id);
+    storage.saveChatbots(updated);
+    setChatbots(updated);
+  };
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+    <div className="min-h-screen bg-gray-50">
+      <div className="container mx-auto p-8">
+        {/* Header */}
+        <div className="flex justify-between items-center mb-8">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">My Chatbots</h1>
+            <p className="text-gray-600 mt-1">Create and manage your chatbots</p>
+          </div>
+          <Button onClick={() => setIsDialogOpen(true)}>
+            <Plus className="w-4 h-4 mr-2" />
+            Create Chatbot
+          </Button>
+        </div>
+
+        {/* Content */}
+        {chatbots.length === 0 ? (
+          <EmptyState onCreateClick={() => setIsDialogOpen(true)} />
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {chatbots.map(chatbot => (
+              <ChatbotCard
+                key={chatbot.id}
+                chatbot={chatbot}
+                onDelete={handleDelete}
+              />
+            ))}
+          </div>
+        )}
+
+        <CreateChatbotDialog
+          open={isDialogOpen}
+          onOpenChange={setIsDialogOpen}
+          onSubmit={handleCreate}
         />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+      </div>
     </div>
   );
 }
