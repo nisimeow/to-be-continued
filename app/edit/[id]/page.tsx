@@ -105,7 +105,11 @@ export default function EditPage() {
 
           {/* Right: Preview */}
           <div className="lg:col-span-3">
-            <WidgetPreview chatbot={chatbot} questions={questions} />
+            <WidgetPreview
+              key={`${chatbot.id}-${chatbot.colors.primary}-${chatbot.colors.text}`}
+              chatbot={chatbot}
+              questions={questions}
+            />
           </div>
         </div>
       </div>

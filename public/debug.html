@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LocalStorage Debug</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 { color: #333; }
+        .section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: #f9f9f9;
+        }
+        pre {
+            background: white;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+            background: #3B82F6;
+            color: white;
+            border: none;
+            border-radius: 4px;
+        }
+        button:hover {
+            background: #2563EB;
+        }
+        .chatbot-item {
+            margin: 10px 0;
+            padding: 10px;
+            background: white;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 LocalStorage Debug Tool</h1>
+
+    <div class="section">
+        <h2>Actions</h2>
+        <button onclick="loadMockData()">Load Mock Data (Force Reset)</button>
+        <button onclick="clearStorage()">Clear All Data</button>
+        <button onclick="location.reload()">Refresh Page</button>
+    </div>
+
+    <div class="section">
+        <h2>Chatbots in LocalStorage</h2>
+        <div id="chatbots-list"></div>
+    </div>
+
+    <div class="section">
+        <h2>Questions in LocalStorage</h2>
+        <div id="questions-count"></div>
+    </div>
+
+    <div class="section">
+        <h2>Raw Data</h2>
+        <h3>Chatbots:</h3>
+        <pre id="chatbots-raw"></pre>
+        <h3>Questions:</h3>
+        <pre id="questions-raw"></pre>
+    </div>
+
+    <script>
+        const mockChatbots = [
+            {
+                id: '1',
+                name: 'Customer Support Bot',
+                colors: {
+                    primary: '#3B82F6',
+                    secondary: '#1E40AF',
+                    text: '#1F2937'
+                },
+                createdAt: new Date().toISOString()
+            },
+            {
+                id: '2',
+                name: 'Sales Assistant',
+                colors: {
+                    primary: '#10B981',
+                    secondary: '#059669',
+                    text: '#1F2937'
+                },
+                createdAt: new Date().toISOString()
+            },
+            {
+                id: '3',
+                name: 'Product Helper',
+                colors: {
+                    primary: '#8B5CF6',
+                    secondary: '#7C3AED',
+                    text: '#1F2937'
+                },
+                createdAt: new Date().toISOString()
+            }
+        ];
+
+        function displayData() {
+            const chatbots = JSON.parse(localStorage.getItem('chatbots') || '[]');
+            const questions = JSON.parse(localStorage.getItem('questions') || '[]');
+
+            // Display chatbot list
+            const chatbotsList = document.getElementById('chatbots-list');
+            if (chatbots.length === 0) {
+                chatbotsList.innerHTML = '<p style="color: red;">❌ No chatbots found in localStorage!</p>';
+            } else {
+                chatbotsList.innerHTML = chatbots.map(c => `
+                    <div class="chatbot-item">
+                        <strong>ID:</strong> ${c.id}<br>
+                        <strong>Name:</strong> ${c.name}<br>
+                        <strong>Primary Color:</strong> <span style="display:inline-block;width:20px;height:20px;background:${c.colors.primary};border:1px solid #000;"></span> ${c.colors.primary}<br>
+                        <strong>Test Link:</strong> <a href="/test.html?id=${c.id}" target="_blank">Test Widget</a>
+                    </div>
+                `).join('');
+            }
+
+            // Display question count
+            const questionsCount = document.getElementById('questions-count');
+            questionsCount.innerHTML = `<p>Total questions: <strong>${questions.length}</strong></p>`;
+
+            chatbots.forEach(bot => {
+                const count = questions.filter(q => q.chatbotId === bot.id).length;
+                questionsCount.innerHTML += `<p>Questions for "${bot.name}" (ID: ${bot.id}): <strong>${count}</strong></p>`;
+            });
+
+            // Display raw data
+            document.getElementById('chatbots-raw').textContent = JSON.stringify(chatbots, null, 2);
+            document.getElementById('questions-raw').textContent = JSON.stringify(questions, null, 2);
+        }
+
+        function loadMockData() {
+            if (confirm('This will replace all existing data with mock data. Continue?')) {
+                fetch('/api/mock-data')
+                    .then(res => res.json())
+                    .then(data => {
+                        localStorage.setItem('chatbots', JSON.stringify(data.chatbots));
+                        localStorage.setItem('questions', JSON.stringify(data.questions));
+                        alert('Mock data loaded successfully!');
+                        location.reload();
+                    })
+                    .catch(err => {
+                        console.error('Failed to fetch mock data, using embedded:', err);
+                        // Fallback to embedded mock data
+                        localStorage.setItem('chatbots', JSON.stringify(mockChatbots));
+                        alert('Mock chatbots loaded (questions need to be loaded separately)');
+                        location.reload();
+                    });
+            }
+        }
+
+        function clearStorage() {
+            if (confirm('This will clear all chatbots and questions. Continue?')) {
+                localStorage.removeItem('chatbots');
+                localStorage.removeItem('questions');
+                alert('Storage cleared!');
+                location.reload();
+            }
+        }
+
+        // Load data on page load
+        displayData();
+    </script>
+</body>
+</html>

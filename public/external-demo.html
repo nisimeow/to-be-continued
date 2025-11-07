@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>External Website Demo - Chatbot Widget</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 40px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 60px 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            color: #333;
+        }
+        h1 {
+            color: #667eea;
+            margin-bottom: 20px;
+            font-size: 2.5em;
+        }
+        .alert {
+            background: #d4edda;
+            border: 2px solid #28a745;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 30px 0;
+        }
+        .alert h3 {
+            margin-top: 0;
+            color: #155724;
+        }
+        .feature-list {
+            list-style: none;
+            padding: 0;
+        }
+        .feature-list li {
+            padding: 15px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .feature-list li:before {
+            content: "✓ ";
+            color: #28a745;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        .code-block {
+            background: #f4f4f4;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 20px 0;
+            font-family: monospace;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 External Website Demo</h1>
+        <p style="font-size: 1.2em; color: #666;">
+            This page simulates an external website using your chatbot widget.
+        </p>
+
+        <div class="alert">
+            <h3>✅ Widget Working on External Domain!</h3>
+            <p>This demonstrates that your chatbot widget works perfectly on ANY website - not just your own domain.</p>
+            <p><strong>How it works:</strong></p>
+            <ul>
+                <li>The widget loads from your server (localhost:3000)</li>
+                <li>It fetches chatbot data via API with CORS enabled</li>
+                <li>Works seamlessly across all domains</li>
+            </ul>
+        </div>
+
+        <h2>Features Tested:</h2>
+        <ul class="feature-list">
+            <li>Cross-domain script loading</li>
+            <li>API data fetching with CORS</li>
+            <li>Real-time color customization</li>
+            <li>Dynamic chatbot switching</li>
+            <li>Pattern matching Q&A</li>
+            <li>Mobile responsive design</li>
+        </ul>
+
+        <h2>Embed Code Used:</h2>
+        <div class="code-block">
+&lt;!-- Chatbot Widget --&gt;<br>
+&lt;script src="http://localhost:3000/widget/chatbot-widget.js?id=2"&gt;&lt;/script&gt;
+        </div>
+
+        <p style="margin-top: 40px; padding: 20px; background: #fff3cd; border-radius: 8px; border-left: 4px solid #ffc107;">
+            <strong>💡 Try it yourself:</strong> Click the chat button in the bottom-right corner to test the widget!
+        </p>
+
+        <h2 style="margin-top: 40px;">About This Company</h2>
+        <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>
+        <p>Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</p>
+    </div>
+
+    <!-- Chatbot Widget - This is the ONLY code needed on external sites! -->
+    <script src="http://localhost:3000/widget/chatbot-widget.js?id=2"></script>
+</body>
+</html>

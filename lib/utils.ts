@@ -15,6 +15,12 @@ export const storage = {
   },
   saveChatbots: (chatbots: Chatbot[]) => {
     localStorage.setItem('chatbots', JSON.stringify(chatbots));
+    // Dispatch custom event for same-tab widget updates
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('chatbotDataUpdated', {
+        detail: { type: 'chatbots' }
+      }));
+    }
   },
   getQuestions: (chatbotId?: string): Question[] => {
     if (typeof window === 'undefined') return [];
@@ -24,5 +30,11 @@ export const storage = {
   },
   saveQuestions: (questions: Question[]) => {
     localStorage.setItem('questions', JSON.stringify(questions));
+    // Dispatch custom event for same-tab widget updates
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('chatbotDataUpdated', {
+        detail: { type: 'questions' }
+      }));
+    }
   }
 };
