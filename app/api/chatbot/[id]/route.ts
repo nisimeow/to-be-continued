@@ -1,15 +1,33 @@
 import { NextResponse } from 'next/server';
+import { getChatbotById } from '@/lib/server-storage';
 import { mockChatbots, mockQuestions } from '@/lib/mock-data';
 
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = params;
+  const { id } = await params;
 
-  // In production, this would fetch from database
-  // For now, we'll use mock data and localStorage-like simulation
+  // Try to get from server storage first
+  const serverData = getChatbotById(id);
 
+  if (serverData) {
+    return NextResponse.json(
+      {
+        chatbot: serverData.chatbot,
+        questions: serverData.questions
+      },
+      {
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type',
+        }
+      }
+    );
+  }
+
+  // Fallback to mock data
   const chatbot = mockChatbots.find(c => c.id === id);
 
   if (!chatbot) {
