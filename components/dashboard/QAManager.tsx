@@ -10,8 +10,9 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
-import { Plus, Trash2, MessageSquare } from 'lucide-react';
+import { Plus, Trash2, MessageSquare, Globe } from 'lucide-react';
 import QAForm from './QAForm';
+import CrawlWebsiteDialog from './CrawlWebsiteDialog';
 import { toast } from 'sonner';
 
 interface QAManagerProps {
@@ -22,6 +23,7 @@ interface QAManagerProps {
 
 export default function QAManager({ questions, onAdd, onDelete }: QAManagerProps) {
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [crawlDialogOpen, setCrawlDialogOpen] = useState(false);
 
   const handleAdd = (data: { question: string; answer: string; keywords: string[] }) => {
     onAdd(data);
@@ -44,10 +46,20 @@ export default function QAManager({ questions, onAdd, onDelete }: QAManagerProps
       <CardHeader>
         <div className="flex justify-between items-center">
           <CardTitle>Questions & Answers</CardTitle>
-          <Button onClick={() => setIsFormOpen(true)} size="sm">
-            <Plus className="w-4 h-4 mr-2" />
-            Add Question
-          </Button>
+          <div className="flex gap-2">
+            <Button onClick={() => setIsFormOpen(true)} size="sm">
+              <Plus className="w-4 h-4 mr-2" />
+              Add Question
+            </Button>
+            <Button
+              onClick={() => setCrawlDialogOpen(true)}
+              variant="outline"
+              size="sm"
+            >
+              <Globe className="w-4 h-4 mr-2" />
+              Crawl Website
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent>
@@ -58,12 +70,18 @@ export default function QAManager({ questions, onAdd, onDelete }: QAManagerProps
             </div>
             <h3 className="text-lg font-semibold text-gray-900 mb-2">No questions yet</h3>
             <p className="text-gray-600 text-center mb-4 max-w-sm">
-              Add your first question and answer to train your chatbot
+              Add your first question manually or crawl a website to generate questions automatically
             </p>
-            <Button onClick={() => setIsFormOpen(true)}>
-              <Plus className="w-4 h-4 mr-2" />
-              Add Question
-            </Button>
+            <div className="flex gap-2">
+              <Button onClick={() => setIsFormOpen(true)}>
+                <Plus className="w-4 h-4 mr-2" />
+                Add Question
+              </Button>
+              <Button onClick={() => setCrawlDialogOpen(true)} variant="outline">
+                <Globe className="w-4 h-4 mr-2" />
+                Crawl Website
+              </Button>
+            </div>
           </div>
         ) : (
           <Accordion type="single" collapsible className="w-full">
@@ -111,6 +129,20 @@ export default function QAManager({ questions, onAdd, onDelete }: QAManagerProps
       </CardContent>
 
       <QAForm open={isFormOpen} onOpenChange={setIsFormOpen} onSubmit={handleAdd} />
+
+      {/* Crawl Website Dialog */}
+      <CrawlWebsiteDialog
+        open={crawlDialogOpen}
+        onOpenChange={setCrawlDialogOpen}
+        onQuestionsAdd={(questions) => {
+          // Add questions with slight delay to ensure unique IDs
+          questions.forEach((q, index) => {
+            setTimeout(() => {
+              onAdd(q);
+            }, index * 10); // 10ms delay between each
+          });
+        }}
+      />
     </Card>
   );
 }

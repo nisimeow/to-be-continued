@@ -5,7 +5,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { HexColorPicker } from 'react-colorful';
 import { useState } from 'react';
-import { toast } from 'sonner';
 
 interface ChatbotSettingsProps {
   chatbot: Chatbot;
@@ -20,7 +19,7 @@ export default function ChatbotSettings({ chatbot, onUpdateColors }: ChatbotSett
     const newColors = { ...colors, [key]: value };
     setColors(newColors);
     onUpdateColors(newColors);
-    toast.success('Color updated');
+    // Toast removed - color change is immediately visible in UI
   };
 
   return (
