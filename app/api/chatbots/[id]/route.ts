@@ -1,7 +1,23 @@
 import { NextResponse } from 'next/server';
-import { getChatbotById, getQuestions, getDefaultResponses, updateChatbot, deleteChatbot } from '@/lib/supabase/database';
+import { getChatbotById, updateChatbot, deleteChatbot } from '@/lib/supabase/database';
 import { z } from 'zod';
 
+// Validation schema
+const updateChatbotSchema = z.object({
+  name: z.string().min(1).max(100).optional(),
+  colors: z.object({
+    primary: z.string(),
+    secondary: z.string(),
+    text: z.string(),
+  }).optional(),
+  welcome_message: z.string().min(1).max(500).optional(),
+  fallback_message: z.string().min(1).max(500).optional(),
+  is_active: z.boolean().optional(),
+});
+
+/**
+ * GET /api/chatbots/[id] - Get a single chatbot
+ */
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -9,59 +25,30 @@ export async function GET(
   try {
     const { id } = await params;
 
-    // Get chatbot and questions from Supabase
-    const [chatbot, questions, defaultResponses] = await Promise.all([
-      getChatbotById(id),
-      getQuestions(id),
-      getDefaultResponses(),
-    ]);
+    const chatbot = await getChatbotById(id);
 
     if (!chatbot) {
       return NextResponse.json(
         { error: 'Chatbot not found' },
-        {
-          status: 404,
-          headers: {
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'GET, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type',
-          }
-        }
+        { status: 404 }
       );
     }
 
-    return NextResponse.json(
-      {
-        chatbot,
-        questions,
-        defaultResponses,
-      },
-      {
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type',
-        }
-      }
-    );
+    return NextResponse.json({
+      success: true,
+      chatbot,
+    });
   } catch (error) {
     console.error('Error fetching chatbot:', error);
     return NextResponse.json(
       { error: 'Failed to fetch chatbot', details: error instanceof Error ? error.message : 'Unknown error' },
-      {
-        status: 500,
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type',
-        }
-      }
+      { status: 500 }
     );
   }
 }
 
 /**
- * PUT /api/chatbot/[id] - Update chatbot
+ * PUT /api/chatbots/[id] - Update chatbot
  */
 export async function PUT(
   request: Request,
@@ -70,6 +57,9 @@ export async function PUT(
   try {
     const { id } = await params;
     const body = await request.json();
+
+    // Validate input
+    const validatedData = updateChatbotSchema.parse(body);
 
     // Check if chatbot exists
     const existingChatbot = await getChatbotById(id);
@@ -81,7 +71,7 @@ export async function PUT(
     }
 
     // Update chatbot
-    const updatedChatbot = await updateChatbot(id, body);
+    const updatedChatbot = await updateChatbot(id, validatedData);
 
     return NextResponse.json({
       success: true,
@@ -89,6 +79,14 @@ export async function PUT(
     });
   } catch (error) {
     console.error('Error updating chatbot:', error);
+
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: 'Validation error', details: error.issues },
+        { status: 400 }
+      );
+    }
+
     return NextResponse.json(
       { error: 'Failed to update chatbot', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
@@ -97,7 +95,7 @@ export async function PUT(
 }
 
 /**
- * DELETE /api/chatbot/[id] - Delete chatbot
+ * DELETE /api/chatbots/[id] - Delete chatbot
  */
 export async function DELETE(
   request: Request,
@@ -129,16 +127,4 @@ export async function DELETE(
       { status: 500 }
     );
   }
-}
-
-// Handle CORS preflight
-export async function OPTIONS() {
-  return new NextResponse(null, {
-    status: 200,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, PUT, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
-    },
-  });
 }

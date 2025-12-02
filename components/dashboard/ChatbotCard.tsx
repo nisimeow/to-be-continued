@@ -61,7 +61,7 @@ export default function ChatbotCard({ chatbot, onDelete }: ChatbotCardProps) {
             <div className="flex-1">
               <h3 className="text-xl font-semibold text-gray-900">{chatbot.name}</h3>
               <p className="text-sm text-gray-500 mt-1">
-                Created {formatDate(chatbot.createdAt)}
+                Created {formatDate(chatbot.created_at)}
               </p>
             </div>
             <DropdownMenu>

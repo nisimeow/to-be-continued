@@ -2,59 +2,154 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { storage } from '@/lib/utils';
+import { useAuth } from '@/lib/hooks/useAuth';
+import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { Chatbot, Question } from '@/lib/types';
 import ChatbotSettings from '@/components/dashboard/ChatbotSettings';
 import QAManager from '@/components/dashboard/QAManager';
 import WidgetPreview from '@/components/dashboard/WidgetPreview';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
+import { toast } from 'sonner';
 
-export default function EditPage() {
+function EditPageContent() {
   const params = useParams();
   const router = useRouter();
+  const { user } = useAuth();
   const id = params.id as string;
 
   const [chatbot, setChatbot] = useState<Chatbot | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const chatbots = storage.getChatbots();
-    const found = chatbots.find(c => c.id === id);
-    if (found) {
-      setChatbot(found);
+    if (user && id) {
+      fetchChatbotData();
     }
+  }, [user, id]);
 
-    setQuestions(storage.getQuestions(id));
-  }, [id]);
+  const fetchChatbotData = async () => {
+    try {
+      setIsLoading(true);
 
-  const handleUpdateColors = (colors: Chatbot['colors']) => {
+      // Fetch chatbot
+      const chatbotResponse = await fetch(`/api/chatbots/${id}`);
+      if (!chatbotResponse.ok) {
+        throw new Error('Chatbot not found');
+      }
+      const chatbotData = await chatbotResponse.json();
+      setChatbot(chatbotData.chatbot);
+
+      // Fetch questions
+      const questionsResponse = await fetch(`/api/chatbots/${id}/questions`);
+      if (questionsResponse.ok) {
+        const questionsData = await questionsResponse.json();
+        setQuestions(questionsData.questions || []);
+      }
+    } catch (error) {
+      console.error('Error fetching chatbot:', error);
+      toast.error('Failed to load chatbot');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleUpdateColors = async (colors: Chatbot['colors']) => {
     if (!chatbot) return;
-    const updated = { ...chatbot, colors };
-    const allChatbots = storage.getChatbots();
-    const newChatbots = allChatbots.map(c => c.id === id ? updated : c);
-    storage.saveChatbots(newChatbots);
-    setChatbot(updated);
+
+    try {
+      const response = await fetch(`/api/chatbots/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ colors }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update colors');
+      }
+
+      const data = await response.json();
+      setChatbot(data.chatbot);
+      toast.success('Colors updated successfully');
+    } catch (error) {
+      console.error('Error updating colors:', error);
+      toast.error('Failed to update colors');
+    }
   };
 
-  const handleAddQuestion = (q: Omit<Question, 'id' | 'chatbotId'>) => {
-    const newQuestion: Question = {
-      id: Date.now().toString(),
-      chatbotId: id,
-      ...q
-    };
-    const allQuestions = storage.getQuestions();
-    const updated = [...allQuestions, newQuestion];
-    storage.saveQuestions(updated);
-    setQuestions(storage.getQuestions(id));
+  const handleAddQuestion = async (q: Omit<Question, 'id' | 'chatbot_id' | 'is_active' | 'created_at' | 'updated_at'>) => {
+    try {
+      const response = await fetch(`/api/chatbots/${id}/questions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(q),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create question');
+      }
+
+      const data = await response.json();
+      setQuestions([...questions, data.question]);
+      toast.success('Question added successfully');
+    } catch (error) {
+      console.error('Error adding question:', error);
+      toast.error('Failed to add question');
+    }
   };
 
-  const handleDeleteQuestion = (questionId: string) => {
-    const allQuestions = storage.getQuestions();
-    const updated = allQuestions.filter(q => q.id !== questionId);
-    storage.saveQuestions(updated);
-    setQuestions(storage.getQuestions(id));
+  const handleUpdateQuestion = async (
+    questionId: string,
+    updates: Partial<Pick<Question, 'question' | 'answer' | 'keywords'>>
+  ) => {
+    try {
+      const response = await fetch(`/api/questions/${questionId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update question');
+      }
+
+      const data = await response.json();
+      setQuestions(questions.map(q => q.id === questionId ? data.question : q));
+      toast.success('Question updated successfully');
+    } catch (error) {
+      console.error('Error updating question:', error);
+      toast.error('Failed to update question');
+    }
   };
+
+  const handleDeleteQuestion = async (questionId: string) => {
+    try {
+      const response = await fetch(`/api/questions/${questionId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete question');
+      }
+
+      setQuestions(questions.filter(q => q.id !== questionId));
+      toast.success('Question deleted successfully');
+    } catch (error) {
+      console.error('Error deleting question:', error);
+      toast.error('Failed to delete question');
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading chatbot...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!chatbot) {
     return (
@@ -99,6 +194,7 @@ export default function EditPage() {
             <QAManager
               questions={questions}
               onAdd={handleAddQuestion}
+              onUpdate={handleUpdateQuestion}
               onDelete={handleDeleteQuestion}
             />
           </div>
@@ -114,5 +210,13 @@ export default function EditPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function EditPage() {
+  return (
+    <ProtectedRoute>
+      <EditPageContent />
+    </ProtectedRoute>
   );
 }

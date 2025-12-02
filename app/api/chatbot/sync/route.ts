@@ -1,25 +1,17 @@
 import { NextResponse } from 'next/server';
-import { writeChatbots, writeQuestions } from '@/lib/server-storage';
-import { Chatbot, Question } from '@/lib/types';
 
+/**
+ * @deprecated This route is deprecated. Data is now automatically synced with Supabase.
+ * Kept for backward compatibility during migration.
+ */
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const { chatbots, questions } = body as { chatbots: Chatbot[]; questions: Question[] };
-
-    if (!chatbots || !questions) {
-      return NextResponse.json(
-        { error: 'Missing chatbots or questions data' },
-        { status: 400 }
-      );
-    }
-
-    // Save to server storage
-    writeChatbots(chatbots);
-    writeQuestions(questions);
-
     return NextResponse.json(
-      { success: true, message: 'Data synced successfully' },
+      {
+        success: true,
+        message: 'Sync endpoint is deprecated. Data is automatically saved to Supabase.',
+        deprecated: true,
+      },
       {
         headers: {
           'Access-Control-Allow-Origin': '*',
@@ -31,9 +23,9 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error('Error syncing data:', error);
     return NextResponse.json(
-      { error: 'Failed to sync data' },
+      { error: 'This endpoint is deprecated' },
       {
-        status: 500,
+        status: 410,
         headers: {
           'Access-Control-Allow-Origin': '*',
           'Access-Control-Allow-Methods': 'POST, OPTIONS',

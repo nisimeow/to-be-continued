@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { storage } from '@/lib/utils';
+import { useAuth } from '@/lib/hooks/useAuth';
+import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { Chatbot } from '@/lib/types';
 import ChatbotCard from '@/components/dashboard/ChatbotCard';
 import EmptyState from '@/components/dashboard/EmptyState';
@@ -10,37 +11,103 @@ import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
 import { toast } from 'sonner';
 
-export default function HomePage() {
+function DashboardContent() {
+  const { user } = useAuth();
   const [chatbots, setChatbots] = useState<Chatbot[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    setChatbots(storage.getChatbots());
-  }, []);
+    if (user) {
+      fetchChatbots();
+    }
+  }, [user]);
 
-  const handleCreate = (name: string) => {
-    const newChatbot: Chatbot = {
-      id: Date.now().toString(),
-      name,
-      colors: {
-        primary: '#3B82F6',
-        secondary: '#1E40AF',
-        text: '#1F2937'
-      },
-      createdAt: new Date().toISOString()
-    };
-    const updated = [...chatbots, newChatbot];
-    storage.saveChatbots(updated);
-    setChatbots(updated);
-    setIsDialogOpen(false);
-    toast.success('Chatbot created successfully!');
+  const fetchChatbots = async () => {
+    try {
+      setIsLoading(true);
+      const response = await fetch(`/api/users/${user?.id}/chatbots`);
+
+      if (!response.ok) {
+        // If endpoint doesn't exist yet, use empty array
+        if (response.status === 404) {
+          setChatbots([]);
+          return;
+        }
+        throw new Error('Failed to fetch chatbots');
+      }
+
+      const data = await response.json();
+      setChatbots(data.chatbots || []);
+    } catch (error) {
+      console.error('Error fetching chatbots:', error);
+      toast.error('Failed to load chatbots');
+      setChatbots([]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleDelete = (id: string) => {
-    const updated = chatbots.filter(c => c.id !== id);
-    storage.saveChatbots(updated);
-    setChatbots(updated);
+  const handleCreate = async (name: string) => {
+    try {
+      const response = await fetch(`/api/users/${user?.id}/chatbots`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name,
+          colors: {
+            primary: '#3B82F6',
+            secondary: '#1E40AF',
+            text: '#1F2937'
+          },
+          welcome_message: `Hi! I'm ${name}. How can I help you today?`,
+          fallback_message: "I'm not sure about that. Could you rephrase your question?",
+          is_active: true,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create chatbot');
+      }
+
+      const data = await response.json();
+      setChatbots([...chatbots, data.chatbot]);
+      setIsDialogOpen(false);
+      toast.success('Chatbot created successfully!');
+    } catch (error) {
+      console.error('Error creating chatbot:', error);
+      toast.error('Failed to create chatbot');
+    }
   };
+
+  const handleDelete = async (id: string) => {
+    try {
+      const response = await fetch(`/api/chatbots/${id}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete chatbot');
+      }
+
+      setChatbots(chatbots.filter(c => c.id !== id));
+      toast.success('Chatbot deleted successfully');
+    } catch (error) {
+      console.error('Error deleting chatbot:', error);
+      toast.error('Failed to delete chatbot');
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading your chatbots...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -79,5 +146,13 @@ export default function HomePage() {
         />
       </div>
     </div>
+  );
+}
+
+export default function HomePage() {
+  return (
+    <ProtectedRoute>
+      <DashboardContent />
+    </ProtectedRoute>
   );
 }

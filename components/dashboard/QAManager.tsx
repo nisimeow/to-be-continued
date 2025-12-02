@@ -10,20 +10,24 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
-import { Plus, Trash2, MessageSquare, Globe } from 'lucide-react';
+import { Plus, Trash2, MessageSquare, Globe, Edit } from 'lucide-react';
 import QAForm from './QAForm';
 import CrawlWebsiteDialog from './CrawlWebsiteDialog';
+import { EditQuestionDialog } from './EditQuestionDialog';
 import { toast } from 'sonner';
 
 interface QAManagerProps {
   questions: Question[];
-  onAdd: (q: Omit<Question, 'id' | 'chatbotId'>) => void;
+  onAdd: (q: Omit<Question, 'id' | 'chatbot_id' | 'is_active' | 'created_at' | 'updated_at'>) => void;
+  onUpdate?: (questionId: string, updates: Partial<Pick<Question, 'question' | 'answer' | 'keywords'>>) => void;
   onDelete: (id: string) => void;
 }
 
-export default function QAManager({ questions, onAdd, onDelete }: QAManagerProps) {
+export default function QAManager({ questions, onAdd, onUpdate, onDelete }: QAManagerProps) {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [crawlDialogOpen, setCrawlDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
 
   const handleAdd = (data: { question: string; answer: string; keywords: string[] }) => {
     onAdd(data);
@@ -34,6 +38,17 @@ export default function QAManager({ questions, onAdd, onDelete }: QAManagerProps
   const handleDelete = (id: string) => {
     onDelete(id);
     toast.success('Question deleted');
+  };
+
+  const handleEdit = (question: Question) => {
+    setEditingQuestion(question);
+    setEditDialogOpen(true);
+  };
+
+  const handleUpdate = (questionId: string, updates: Partial<Pick<Question, 'question' | 'answer' | 'keywords'>>) => {
+    if (onUpdate) {
+      onUpdate(questionId, updates);
+    }
   };
 
   const truncateText = (text: string, maxLength: number) => {
@@ -110,7 +125,17 @@ export default function QAManager({ questions, onAdd, onDelete }: QAManagerProps
                       <div className="text-sm font-medium text-gray-700 mb-1">Answer:</div>
                       <div className="text-gray-900 whitespace-pre-wrap">{q.answer}</div>
                     </div>
-                    <div className="flex justify-end">
+                    <div className="flex justify-end gap-2">
+                      {onUpdate && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleEdit(q)}
+                        >
+                          <Edit className="w-4 h-4 mr-2" />
+                          Edit
+                        </Button>
+                      )}
                       <Button
                         variant="destructive"
                         size="sm"
@@ -129,6 +154,14 @@ export default function QAManager({ questions, onAdd, onDelete }: QAManagerProps
       </CardContent>
 
       <QAForm open={isFormOpen} onOpenChange={setIsFormOpen} onSubmit={handleAdd} />
+
+      {/* Edit Question Dialog */}
+      <EditQuestionDialog
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        question={editingQuestion}
+        onSubmit={handleUpdate}
+      />
 
       {/* Crawl Website Dialog */}
       <CrawlWebsiteDialog
