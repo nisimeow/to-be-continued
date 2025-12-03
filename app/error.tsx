@@ -47,10 +47,10 @@ export default function Error({
             </Button>
             <Button
               variant="outline"
-              onClick={() => (window.location.href = '/dashboard')}
+              onClick={() => (window.location.href = '/')}
               className="flex-1"
             >
-              Go to Dashboard
+              Go to Home
             </Button>
           </div>
         </CardContent>

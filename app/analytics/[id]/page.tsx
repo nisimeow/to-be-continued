@@ -91,9 +91,9 @@ export default function AnalyticsPage({
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Chatbot not found</h2>
-          <Button onClick={() => router.push('/dashboard')}>
+          <Button onClick={() => router.push('/')}>
             <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Dashboard
+            Back to Home
           </Button>
         </div>
       </div>
@@ -105,9 +105,9 @@ export default function AnalyticsPage({
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-6">
-          <Button variant="ghost" onClick={() => router.push('/dashboard')} className="mb-4">
+          <Button variant="ghost" onClick={() => router.push('/')} className="mb-4">
             <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Dashboard
+            Back to Home
           </Button>
           <div className="flex items-center justify-between">
             <div>

@@ -2,6 +2,18 @@ import { NextResponse } from 'next/server';
 import { getSessions } from '@/lib/supabase/database';
 import { createClient } from '@/lib/supabase/server';
 
+// CORS headers for cross-origin requests
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+};
+
+// Handle OPTIONS request for CORS preflight
+export async function OPTIONS() {
+  return NextResponse.json({}, { headers: corsHeaders });
+}
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -12,7 +24,7 @@ export async function GET(
     if (!id) {
       return NextResponse.json(
         { error: 'Chatbot ID is required' },
-        { status: 400 }
+        { status: 400, headers: corsHeaders }
       );
     }
 
@@ -32,6 +44,8 @@ export async function GET(
       .not('matched_question_id', 'is', null);
 
     if (error) throw error;
+
+    console.log(`📊 Top Questions: Found ${messages?.length || 0} matched messages`);
 
     // Count occurrences of each question
     const questionCounts = new Map<string, number>();
@@ -62,15 +76,17 @@ export async function GET(
       .sort((a, b) => b.count - a.count)
       .slice(0, 10) || [];
 
+    console.log(`📊 Top Questions: Returning ${data.length} top questions`);
+
     return NextResponse.json({
       success: true,
       data,
-    });
+    }, { headers: corsHeaders });
   } catch (error) {
-    console.error('Error fetching top questions:', error);
+    console.error('❌ Error fetching top questions:', error);
     return NextResponse.json(
       { error: 'Failed to fetch analytics data' },
-      { status: 500 }
+      { status: 500, headers: corsHeaders }
     );
   }
 }

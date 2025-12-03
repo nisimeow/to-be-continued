@@ -1,6 +1,18 @@
 import { NextResponse } from 'next/server';
 import { getSessions } from '@/lib/supabase/database';
 
+// CORS headers for cross-origin requests
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+};
+
+// Handle OPTIONS request for CORS preflight
+export async function OPTIONS() {
+  return NextResponse.json({}, { headers: corsHeaders });
+}
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -13,11 +25,13 @@ export async function GET(
     if (!id) {
       return NextResponse.json(
         { error: 'Chatbot ID is required' },
-        { status: 400 }
+        { status: 400, headers: corsHeaders }
       );
     }
 
     const sessions = await getSessions(id);
+
+    console.log(`📊 Analytics: Found ${sessions.length} sessions for chatbot ${id}`);
 
     // Group by date
     const dateMap = new Map<string, number>();
@@ -48,15 +62,17 @@ export async function GET(
       }))
       .sort((a, b) => a.date.localeCompare(b.date));
 
+    console.log(`📊 Analytics: Returning ${data.length} data points`);
+
     return NextResponse.json({
       success: true,
       data,
-    });
+    }, { headers: corsHeaders });
   } catch (error) {
-    console.error('Error fetching conversations over time:', error);
+    console.error('❌ Error fetching conversations over time:', error);
     return NextResponse.json(
       { error: 'Failed to fetch analytics data' },
-      { status: 500 }
+      { status: 500, headers: corsHeaders }
     );
   }
 }

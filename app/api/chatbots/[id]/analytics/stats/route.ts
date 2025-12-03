@@ -1,6 +1,18 @@
 import { NextResponse } from 'next/server';
 import { getSessions } from '@/lib/supabase/database';
 
+// CORS headers for cross-origin requests
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+};
+
+// Handle OPTIONS request for CORS preflight
+export async function OPTIONS() {
+  return NextResponse.json({}, { headers: corsHeaders });
+}
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -11,11 +23,13 @@ export async function GET(
     if (!id) {
       return NextResponse.json(
         { error: 'Chatbot ID is required' },
-        { status: 400 }
+        { status: 400, headers: corsHeaders }
       );
     }
 
     const sessions = await getSessions(id);
+
+    console.log(`📊 Stats: Found ${sessions.length} sessions for chatbot ${id}`);
 
     // Calculate stats
     const totalConversations = sessions.length;
@@ -28,6 +42,8 @@ export async function GET(
             sessionsWithDuration.length
         )
       : 0;
+
+    console.log(`📊 Stats: ${sessionsWithDuration.length} sessions with duration, avg: ${avgDuration}s`);
 
     const activeConversations = sessions.filter((s) => !s.ended_at).length;
 
@@ -55,12 +71,12 @@ export async function GET(
         unresolved,
         ongoing,
       },
-    });
+    }, { headers: corsHeaders });
   } catch (error) {
-    console.error('Error fetching stats:', error);
+    console.error('❌ Error fetching stats:', error);
     return NextResponse.json(
       { error: 'Failed to fetch analytics data' },
-      { status: 500 }
+      { status: 500, headers: corsHeaders }
     );
   }
 }
