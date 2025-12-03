@@ -1,19 +1,25 @@
 import type { Metadata } from "next";
-import { Nunito } from "next/font/google";
+import { Lato, Playfair_Display } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { Header } from "@/components/Header";
 import "@/lib/env"; // Validate environment variables on startup
 
-const nunito = Nunito({
-  variable: "--font-nunito",
+const lato = Lato({
+  variable: "--font-lato",
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700", "800"],
+  weight: ["300", "400", "700", "900"],
+});
+
+const playfair = Playfair_Display({
+  variable: "--font-playfair",
+  subsets: ["latin"],
+  weight: ["400", "700", "900"],
 });
 
 export const metadata: Metadata = {
-  title: "Chatbot Builder",
-  description: "Create and manage chatbots with ease",
+  title: "ConversAi - AI Chatbot Builder",
+  description: "Create and manage AI-powered chatbots with ease",
 };
 
 export default function RootLayout({
@@ -24,7 +30,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${nunito.variable} font-sans antialiased`}
+        className={`${lato.variable} ${playfair.variable} font-sans antialiased`}
       >
         <Header />
         {children}

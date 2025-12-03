@@ -8,6 +8,7 @@ import ChatbotCard from '@/components/dashboard/ChatbotCard';
 import EmptyState from '@/components/dashboard/EmptyState';
 import CreateChatbotDialog from '@/components/dashboard/CreateChatbotDialog';
 import { Button } from '@/components/ui/button';
+import { Loader } from '@/components/ui/loader';
 import { Plus } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -100,26 +101,25 @@ function DashboardContent() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading your chatbots...</p>
-        </div>
+      <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 flex items-center justify-center">
+        <Loader size="lg" text="Loading your chatbots..." />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="container mx-auto p-8">
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
+      <div className="container mx-auto px-6 py-12 max-w-7xl">
         {/* Header */}
-        <div className="flex justify-between items-center mb-8">
+        <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-12 gap-6 pb-8 border-b border-border/40">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">My Chatbots</h1>
-            <p className="text-gray-600 mt-1">Create and manage your chatbots</p>
+            <h1 className="text-4xl md:text-5xl font-bold text-foreground mb-3 tracking-tight">
+              My Chatbots
+            </h1>
+            <p className="text-muted-foreground text-lg">Create and manage your AI-powered chatbots</p>
           </div>
-          <Button onClick={() => setIsDialogOpen(true)}>
-            <Plus className="w-4 h-4 mr-2" />
+          <Button onClick={() => setIsDialogOpen(true)} size="lg" className="md:self-start">
+            <Plus className="w-5 h-5 mr-2" />
             Create Chatbot
           </Button>
         </div>
@@ -128,7 +128,7 @@ function DashboardContent() {
         {chatbots.length === 0 ? (
           <EmptyState onCreateClick={() => setIsDialogOpen(true)} />
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {chatbots.map(chatbot => (
               <ChatbotCard
                 key={chatbot.id}

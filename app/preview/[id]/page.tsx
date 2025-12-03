@@ -2,10 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { storage } from '@/lib/utils';
 import { Chatbot, Question } from '@/lib/types';
 import { Button } from '@/components/ui/button';
+import { Loader } from '@/components/ui/loader';
 import { ArrowLeft, Monitor, Tablet, Smartphone } from 'lucide-react';
+import { toast } from 'sonner';
 
 type Device = 'desktop' | 'tablet' | 'mobile';
 
@@ -17,13 +18,27 @@ export default function PreviewPage() {
   const [device, setDevice] = useState<Device>('desktop');
   const [chatbot, setChatbot] = useState<Chatbot | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const chatbots = storage.getChatbots();
-    const found = chatbots.find(c => c.id === id);
-    if (found) setChatbot(found);
+    const loadData = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch(`/api/chatbot/${id}`);
+        if (!response.ok) throw new Error('Failed to load chatbot');
 
-    setQuestions(storage.getQuestions(id));
+        const data = await response.json();
+        setChatbot(data.chatbot);
+        setQuestions(data.questions || []);
+      } catch (error) {
+        console.error('Error loading chatbot:', error);
+        toast.error('Failed to load chatbot');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
   }, [id]);
 
   const deviceSizes = {
@@ -32,21 +47,36 @@ export default function PreviewPage() {
     mobile: { width: '375px', height: '667px' }
   };
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-gradient-to-br from-background via-background to-muted/20">
+        <Loader size="lg" text="Loading preview..." />
+      </div>
+    );
+  }
+
   if (!chatbot) {
-    return <div className="flex items-center justify-center h-screen">Loading...</div>;
+    return (
+      <div className="flex items-center justify-center h-screen bg-gradient-to-br from-background via-background to-muted/20">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-foreground mb-3">Chatbot not found</h2>
+          <Button onClick={() => router.push('/')}>Back to Home</Button>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
       {/* Toolbar */}
-      <div className="bg-white border-b px-6 py-4 flex items-center justify-between sticky top-0 z-10">
+      <div className="bg-card border-b border-border/60 px-6 py-5 flex items-center justify-between sticky top-0 z-10 shadow-sm backdrop-blur-sm">
         <Button variant="ghost" onClick={() => router.back()}>
           <ArrowLeft className="w-4 h-4 mr-2" />
           Back to Editor
         </Button>
 
         <div className="flex items-center gap-4">
-          <span className="text-sm text-gray-600 font-medium">{chatbot.name}</span>
+          <span className="text-sm text-foreground font-semibold">{chatbot.name}</span>
           <div className="flex gap-2">
             <Button
               variant={device === 'desktop' ? 'default' : 'outline'}

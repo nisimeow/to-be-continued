@@ -55,18 +55,21 @@ export default function ChatbotCard({ chatbot, onDelete }: ChatbotCardProps) {
 
   return (
     <>
-      <Card className="hover:shadow-lg transition-all duration-300">
+      <Card className="group">
         <CardHeader>
           <div className="flex justify-between items-start">
             <div className="flex-1">
-              <h3 className="text-xl font-semibold text-gray-900">{chatbot.name}</h3>
-              <p className="text-sm text-gray-500 mt-1">
+              <h3 className="text-xl font-bold text-foreground group-hover:text-primary transition-colors">
+                {chatbot.name}
+              </h3>
+              <p className="text-sm text-muted-foreground mt-2 flex items-center gap-1.5">
+                <span className="w-1 h-1 bg-muted-foreground rounded-full"></span>
                 Created {formatDate(chatbot.created_at)}
               </p>
             </div>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm">
+                <Button variant="ghost" size="icon-sm" className="hover:bg-muted">
                   <MoreVertical className="w-4 h-4" />
                 </Button>
               </DropdownMenuTrigger>
@@ -89,7 +92,7 @@ export default function ChatbotCard({ chatbot, onDelete }: ChatbotCardProps) {
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => setShowDeleteDialog(true)}
-                  className="text-red-600"
+                  className="text-destructive hover:text-destructive hover:bg-destructive/10"
                 >
                   <Trash2 className="w-4 h-4 mr-2" />
                   Delete
@@ -99,31 +102,43 @@ export default function ChatbotCard({ chatbot, onDelete }: ChatbotCardProps) {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="space-y-2">
-            <div className="text-sm text-gray-600">Color Theme:</div>
-            <div className="flex gap-2">
-              <div
-                className="w-10 h-10 rounded-lg border-2 border-gray-200"
-                style={{ backgroundColor: chatbot.colors.primary }}
-                title="Primary Color"
-              />
-              <div
-                className="w-10 h-10 rounded-lg border-2 border-gray-200"
-                style={{ backgroundColor: chatbot.colors.secondary }}
-                title="Secondary Color"
-              />
-              <div
-                className="w-10 h-10 rounded-lg border-2 border-gray-200"
-                style={{ backgroundColor: chatbot.colors.text }}
-                title="Text Color"
-              />
+          <div className="space-y-3">
+            <div className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+              Color Theme
+            </div>
+            <div className="flex gap-3">
+              <div className="flex flex-col items-center gap-2 group/color">
+                <div
+                  className="w-12 h-12 rounded-xl border-2 border-border shadow-sm group-hover/color:shadow-md transition-all group-hover/color:scale-110"
+                  style={{ backgroundColor: chatbot.colors.primary }}
+                  title="Primary Color"
+                />
+                <span className="text-xs text-muted-foreground font-medium">Primary</span>
+              </div>
+              <div className="flex flex-col items-center gap-2 group/color">
+                <div
+                  className="w-12 h-12 rounded-xl border-2 border-border shadow-sm group-hover/color:shadow-md transition-all group-hover/color:scale-110"
+                  style={{ backgroundColor: chatbot.colors.secondary }}
+                  title="Secondary Color"
+                />
+                <span className="text-xs text-muted-foreground font-medium">Secondary</span>
+              </div>
+              <div className="flex flex-col items-center gap-2 group/color">
+                <div
+                  className="w-12 h-12 rounded-xl border-2 border-border shadow-sm group-hover/color:shadow-md transition-all group-hover/color:scale-110"
+                  style={{ backgroundColor: chatbot.colors.text }}
+                  title="Text Color"
+                />
+                <span className="text-xs text-muted-foreground font-medium">Text</span>
+              </div>
             </div>
           </div>
         </CardContent>
-        <CardFooter className="flex gap-2">
+        <CardFooter className="flex gap-3 pt-6 border-t border-border/60">
           <Button
             variant="default"
             className="flex-1"
+            size="default"
             onClick={() => router.push(`/edit/${chatbot.id}`)}
           >
             <Edit className="w-4 h-4 mr-2" />
@@ -132,6 +147,7 @@ export default function ChatbotCard({ chatbot, onDelete }: ChatbotCardProps) {
           <Button
             variant="outline"
             className="flex-1"
+            size="default"
             onClick={() => router.push(`/analytics/${chatbot.id}`)}
           >
             <BarChart3 className="w-4 h-4 mr-2" />
@@ -151,7 +167,7 @@ export default function ChatbotCard({ chatbot, onDelete }: ChatbotCardProps) {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90">
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>
