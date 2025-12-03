@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Widget Test - Local</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .card {
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h1 { color: #333; margin-bottom: 20px; }
+        .alert {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .alert-warning {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+        }
+        .code {
+            background: #f4f4f4;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>Widget Session Tracking Test</h1>
+
+        <div class="alert">
+            <strong>Test Instructions:</strong>
+            <ol>
+                <li>Open browser console (F12)</li>
+                <li>Look for widget log messages (starting with 🔵, ✅, or ❌)</li>
+                <li>Click the chat button in the bottom-right</li>
+                <li>Send a test message</li>
+                <li>Check console for session creation and message saving logs</li>
+            </ol>
+        </div>
+
+        <div class="alert alert-warning">
+            <strong>Chatbot ID:</strong> b9aa63e8-3cef-4a01-a32e-cdc42bb56cc0<br>
+            <strong>Widget URL:</strong> http://localhost:3000/widget/chatbot-widget.js
+        </div>
+
+        <h2>Test Content</h2>
+        <p>This is a test page to verify that the chatbot widget properly tracks sessions and messages in the database.</p>
+
+        <p>Try asking questions like:</p>
+        <ul>
+            <li>"Hello"</li>
+            <li>"What are your hours?"</li>
+            <li>"How can I contact support?"</li>
+        </ul>
+
+        <h3>Expected Console Output:</h3>
+        <div class="code">
+            🔵 Widget: Creating session for chatbot: b9aa63e8-3cef-4a01-a32e-cdc42bb56cc0<br>
+            🔵 Widget: Session API response status: 200<br>
+            ✅ Widget: Session created successfully: [session-id]<br>
+            💬 Widget: Saving message for session: [session-id]<br>
+            ✅ Widget: Message saved successfully
+        </div>
+    </div>
+
+    <!-- Chatbot Widget -->
+    <script src="http://localhost:3000/widget/chatbot-widget.js?id=b9aa63e8-3cef-4a01-a32e-cdc42bb56cc0"></script>
+</body>
+</html>
