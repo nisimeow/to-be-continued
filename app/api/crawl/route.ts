@@ -1,15 +1,23 @@
 import { NextResponse } from 'next/server';
 import * as cheerio from 'cheerio';
+import { saveCrawledContent } from '@/lib/supabase/database';
 
 const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 
 export async function POST(request: Request) {
   try {
-    const { url } = await request.json();
+    const { url, chatbotId } = await request.json();
 
     if (!url) {
       return NextResponse.json(
         { error: 'URL is required' },
+        { status: 400 }
+      );
+    }
+
+    if (!chatbotId) {
+      return NextResponse.json(
+        { error: 'Chatbot ID is required' },
         { status: 400 }
       );
     }
@@ -84,7 +92,22 @@ export async function POST(request: Request) {
 
     console.log('Extracted content length:', mainContent.length);
 
-    // Step 3: Generate Q&As using Gemini REST API
+    // Step 2.5: Store extracted content in database BEFORE calling AI
+    try {
+      const crawledContent = await saveCrawledContent({
+        chatbot_id: chatbotId,
+        url: validUrl.toString(),
+        raw_text: mainContent,
+        extracted_title: title || null,
+        extracted_description: metaDescription || null,
+      });
+      console.log('Stored crawled content:', crawledContent.id);
+    } catch (error) {
+      console.error('Failed to store crawled content:', error);
+      // Continue anyway - we still want to generate Q&As
+    }
+
+    // Step 3: Generate Q&As using Gemini REST API with IMPROVED PROMPT
     const geminiPrompt = `You are a helpful assistant that creates FAQ questions and answers based on website content.
 
 Website Title: ${title}
@@ -93,17 +116,23 @@ Description: ${metaDescription}
 Content:
 ${mainContent}
 
-Based on this content, generate exactly 5 frequently asked questions with detailed answers. Focus on:
+Based on this content, generate exactly 5 frequently asked questions with SHORT, CONCISE answers. Focus on:
 - Practical questions users would actually ask
-- Clear, complete answers (2-4 sentences each)
-- Relevant keywords for pattern matching (4-6 keywords per question)
+- CONCISE answers (1-2 sentences max, under 100 words)
+- Be direct and friendly, not overly formal
+- Relevant keywords for pattern matching (6-8 keywords per question, including variations)
+
+IMPORTANT:
+- Keep answers SHORT and conversational
+- Avoid unnecessary explanations
+- Get straight to the point
 
 Return ONLY valid JSON in this exact format (no markdown, no code blocks, just raw JSON):
 [
   {
     "question": "Question here?",
-    "answer": "Detailed answer here.",
-    "keywords": ["keyword1", "keyword2", "keyword3", "keyword4"]
+    "answer": "Short, concise answer here.",
+    "keywords": ["keyword1", "keyword2", "keyword3", "keyword4", "keyword5", "keyword6"]
   }
 ]
 
@@ -132,7 +161,14 @@ Make sure questions are specific to this website's content.`;
       const errorData = await geminiResponse.json();
       console.error('Gemini API error:', errorData);
       return NextResponse.json(
-        { error: 'AI service error. Please try again.' },
+        {
+          error: 'AI service error. Content was saved, but Q&A generation failed.',
+          metadata: {
+            url: validUrl.toString(),
+            title,
+            contentLength: mainContent.length,
+          }
+        },
         { status: 500 }
       );
     }

@@ -3,7 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { Header } from "@/components/Header";
-import { StorageInitializer } from "@/components/StorageInitializer";
+import "@/lib/env"; // Validate environment variables on startup
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -30,7 +30,6 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <StorageInitializer />
         <Header />
         {children}
         <Toaster />

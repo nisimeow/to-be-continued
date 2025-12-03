@@ -4,7 +4,7 @@ import { Chatbot } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { HexColorPicker } from 'react-colorful';
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 interface ChatbotSettingsProps {
   chatbot: Chatbot;
@@ -14,18 +14,68 @@ interface ChatbotSettingsProps {
 export default function ChatbotSettings({ chatbot, onUpdateColors }: ChatbotSettingsProps) {
   const [colors, setColors] = useState(chatbot.colors);
   const [activeColorPicker, setActiveColorPicker] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const initialColorsRef = useRef(chatbot.colors);
+
+  // Debounced save: only call API after user stops changing colors for 800ms
+  useEffect(() => {
+    // Clear any existing timer
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+
+    // Set new timer to save after 800ms of inactivity
+    debounceTimerRef.current = setTimeout(() => {
+      // Only save if colors have actually changed from initial
+      if (
+        colors.primary !== initialColorsRef.current.primary ||
+        colors.secondary !== initialColorsRef.current.secondary ||
+        colors.text !== initialColorsRef.current.text
+      ) {
+        setIsSaving(true);
+        onUpdateColors(colors);
+        initialColorsRef.current = colors;
+        // Reset saving state after a short delay
+        setTimeout(() => setIsSaving(false), 500);
+      }
+    }, 800);
+
+    // Cleanup timer on unmount
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, [colors, onUpdateColors]);
+
+  // Update initial colors ref when chatbot prop changes
+  useEffect(() => {
+    initialColorsRef.current = chatbot.colors;
+    setColors(chatbot.colors);
+  }, [chatbot.colors]);
 
   const handleColorChange = (key: keyof Chatbot['colors'], value: string) => {
     const newColors = { ...colors, [key]: value };
     setColors(newColors);
-    onUpdateColors(newColors);
-    // Toast removed - color change is immediately visible in UI
+    // API call will happen via useEffect debouncing
   };
 
   return (
     <Card className="sticky top-6">
       <CardHeader>
-        <CardTitle>Settings</CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle>Settings</CardTitle>
+          {isSaving && (
+            <span className="text-xs text-gray-500 flex items-center gap-1">
+              <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              </svg>
+              Saving...
+            </span>
+          )}
+        </div>
       </CardHeader>
       <CardContent className="space-y-6">
         {/* Chatbot Name */}
@@ -36,7 +86,12 @@ export default function ChatbotSettings({ chatbot, onUpdateColors }: ChatbotSett
 
         {/* Color Pickers */}
         <div className="space-y-4">
-          <Label className="text-sm font-medium">Colors</Label>
+          <div className="flex items-center justify-between">
+            <Label className="text-sm font-medium">Colors</Label>
+            {!isSaving && colors !== chatbot.colors && (
+              <span className="text-xs text-gray-400">Unsaved changes</span>
+            )}
+          </div>
 
           {/* Primary Color */}
           <div>

@@ -82,7 +82,7 @@ export type UpdateQuestionInput = Partial<Omit<Question, 'id' | 'chatbot_id' | '
 
 export type CreateCrawledContentInput = Omit<CrawledContent, 'id' | 'crawled_at'>;
 
-export type CreateChatSessionInput = Omit<ChatSession, 'id' | 'started_at' | 'ended_at' | 'duration_seconds' | 'message_count'>;
+export type CreateChatSessionInput = Omit<ChatSession, 'id' | 'started_at' | 'ended_at' | 'duration_seconds' | 'message_count' | 'user_ip' | 'user_agent'>;
 
 export type UpdateChatSessionInput = Partial<Pick<ChatSession, 'ended_at' | 'duration_seconds' | 'message_count'>>;
 

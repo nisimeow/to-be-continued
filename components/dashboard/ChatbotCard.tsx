@@ -19,7 +19,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { MoreVertical, Edit, Eye, Copy, Trash2 } from 'lucide-react';
+import { MoreVertical, Edit, Eye, Copy, Trash2, BarChart3 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { toast } from 'sonner';
@@ -79,6 +79,10 @@ export default function ChatbotCard({ chatbot, onDelete }: ChatbotCardProps) {
                   <Eye className="w-4 h-4 mr-2" />
                   Preview
                 </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => router.push(`/analytics/${chatbot.id}`)}>
+                  <BarChart3 className="w-4 h-4 mr-2" />
+                  Analytics
+                </DropdownMenuItem>
                 <DropdownMenuItem onClick={handleCopyEmbed}>
                   <Copy className="w-4 h-4 mr-2" />
                   Copy Embed
@@ -128,10 +132,10 @@ export default function ChatbotCard({ chatbot, onDelete }: ChatbotCardProps) {
           <Button
             variant="outline"
             className="flex-1"
-            onClick={() => router.push(`/preview/${chatbot.id}`)}
+            onClick={() => router.push(`/analytics/${chatbot.id}`)}
           >
-            <Eye className="w-4 h-4 mr-2" />
-            Preview
+            <BarChart3 className="w-4 h-4 mr-2" />
+            Analytics
           </Button>
         </CardFooter>
       </Card>

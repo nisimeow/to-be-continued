@@ -10,22 +10,25 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
-import { Plus, Trash2, MessageSquare, Globe, Edit } from 'lucide-react';
+import { Plus, Trash2, MessageSquare, Globe, Edit, History } from 'lucide-react';
 import QAForm from './QAForm';
 import CrawlWebsiteDialog from './CrawlWebsiteDialog';
+import CrawlHistoryDialog from './CrawlHistoryDialog';
 import { EditQuestionDialog } from './EditQuestionDialog';
 import { toast } from 'sonner';
 
 interface QAManagerProps {
+  chatbotId: string;
   questions: Question[];
   onAdd: (q: Omit<Question, 'id' | 'chatbot_id' | 'is_active' | 'created_at' | 'updated_at'>) => void;
   onUpdate?: (questionId: string, updates: Partial<Pick<Question, 'question' | 'answer' | 'keywords'>>) => void;
   onDelete: (id: string) => void;
 }
 
-export default function QAManager({ questions, onAdd, onUpdate, onDelete }: QAManagerProps) {
+export default function QAManager({ chatbotId, questions, onAdd, onUpdate, onDelete }: QAManagerProps) {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [crawlDialogOpen, setCrawlDialogOpen] = useState(false);
+  const [crawlHistoryOpen, setCrawlHistoryOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
 
@@ -73,6 +76,14 @@ export default function QAManager({ questions, onAdd, onUpdate, onDelete }: QAMa
             >
               <Globe className="w-4 h-4 mr-2" />
               Crawl Website
+            </Button>
+            <Button
+              onClick={() => setCrawlHistoryOpen(true)}
+              variant="outline"
+              size="sm"
+            >
+              <History className="w-4 h-4 mr-2" />
+              View History
             </Button>
           </div>
         </div>
@@ -167,14 +178,20 @@ export default function QAManager({ questions, onAdd, onUpdate, onDelete }: QAMa
       <CrawlWebsiteDialog
         open={crawlDialogOpen}
         onOpenChange={setCrawlDialogOpen}
-        onQuestionsAdd={(questions) => {
-          // Add questions with slight delay to ensure unique IDs
-          questions.forEach((q, index) => {
-            setTimeout(() => {
-              onAdd(q);
-            }, index * 10); // 10ms delay between each
-          });
+        chatbotId={chatbotId}
+        onQuestionsAdd={async (questions) => {
+          // Add all questions sequentially to ensure they're all added
+          for (const q of questions) {
+            await onAdd(q);
+          }
         }}
+      />
+
+      {/* Crawl History Dialog */}
+      <CrawlHistoryDialog
+        open={crawlHistoryOpen}
+        onOpenChange={setCrawlHistoryOpen}
+        chatbotId={chatbotId}
       />
     </Card>
   );

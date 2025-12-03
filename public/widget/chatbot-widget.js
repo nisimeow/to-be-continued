@@ -23,6 +23,8 @@
       this.isOpen = false;
       this.chatbotData = null;
       this.messages = [];
+      this.sessionId = null;
+      this.sessionStartTime = null;
       this.init();
     }
 
@@ -50,7 +52,10 @@
             this.chatbotData = {
               name: data.chatbot.name,
               colors: data.chatbot.colors,
-              questions: data.questions
+              welcomeMessage: data.chatbot.welcome_message || `Hello! I'm ${data.chatbot.name}. How can I help you today?`,
+              fallbackMessage: data.chatbot.fallback_message || "I'm sorry, I don't have an answer for that. Please contact our support team for assistance.",
+              questions: data.questions || [],
+              defaultResponses: data.defaultResponses || []
             };
             // Cache in localStorage for faster subsequent loads
             localStorage.setItem(`chatbot_${this.chatbotId}`, JSON.stringify(this.chatbotData));
@@ -347,6 +352,18 @@
       window.addEventListener('chatbotDataUpdated', () => {
         this.reloadChatbotData();
       });
+
+      // Track page unload to close session
+      window.addEventListener('beforeunload', () => {
+        this.closeSession();
+      });
+
+      // Also track visibility change (when user switches tabs)
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden && this.sessionId) {
+          this.closeSession();
+        }
+      });
     }
 
     async reloadChatbotData() {
@@ -362,7 +379,10 @@
           this.chatbotData = {
             name: data.chatbot.name,
             colors: data.chatbot.colors,
-            questions: data.questions
+            welcomeMessage: data.chatbot.welcome_message || `Hello! I'm ${data.chatbot.name}. How can I help you today?`,
+            fallbackMessage: data.chatbot.fallback_message || "I'm sorry, I don't have an answer for that. Please contact our support team for assistance.",
+            questions: data.questions || [],
+            defaultResponses: data.defaultResponses || []
           };
 
           // Update cache
@@ -410,11 +430,15 @@
       this.chatWindow.classList.toggle('open', this.isOpen);
       if (this.isOpen) {
         this.input.focus();
+      } else if (this.sessionId) {
+        // Close session when widget is closed
+        this.closeSession();
       }
     }
 
     addWelcomeMessage() {
-      this.addMessage('bot', `Hello! I'm ${this.chatbotData.name}. How can I help you today?`);
+      const welcomeMsg = this.chatbotData.welcomeMessage || `Hello! I'm ${this.chatbotData.name}. How can I help you today?`;
+      this.addMessage('bot', welcomeMsg);
     }
 
     addMessage(type, text) {
@@ -447,7 +471,7 @@
       if (typing) typing.remove();
     }
 
-    handleSend() {
+    async handleSend() {
       const userMessage = this.input.value.trim();
       if (!userMessage) return;
 
@@ -455,19 +479,68 @@
       this.addMessage('user', userMessage);
       this.input.value = '';
 
+      // Create session on first message
+      if (!this.sessionId) {
+        await this.createSession();
+      }
+
+      // Save user message
+      await this.saveMessage('user', userMessage, null);
+
       this.addTypingIndicator();
 
-      setTimeout(() => {
+      setTimeout(async () => {
         this.removeTypingIndicator();
-        const botResponse = this.patternMatch(userMessage);
+        const matchResult = this.patternMatchWithId(userMessage);
+        const botResponse = matchResult.answer;
+        const matchedQuestionId = matchResult.questionId;
+
         this.addMessage('bot', botResponse);
+
+        // Save bot message
+        await this.saveMessage('bot', botResponse, matchedQuestionId);
+
         this.sendButton.disabled = false;
         this.input.focus();
       }, 800);
     }
 
+    checkDefaultResponse(message) {
+      // Check for generic/default responses first (hi, thanks, bye, etc.)
+      if (!this.chatbotData.defaultResponses || this.chatbotData.defaultResponses.length === 0) {
+        return null;
+      }
+
+      const normalizedMessage = message.toLowerCase().trim();
+
+      for (const defaultResponse of this.chatbotData.defaultResponses) {
+        // Check if any keyword matches
+        for (const keyword of defaultResponse.keywords) {
+          if (normalizedMessage.includes(keyword.toLowerCase())) {
+            // Replace {chatbot_name} placeholder
+            return defaultResponse.response_template.replace(/{chatbot_name}/g, this.chatbotData.name);
+          }
+        }
+      }
+
+      return null;
+    }
+
     patternMatch(userMessage) {
+      const result = this.patternMatchWithId(userMessage);
+      return result.answer;
+    }
+
+    patternMatchWithId(userMessage) {
       const message = userMessage.toLowerCase().trim();
+
+      // FIRST: Check for default/generic responses (hi, thanks, bye, etc.)
+      const defaultResponse = this.checkDefaultResponse(message);
+      if (defaultResponse) {
+        return { answer: defaultResponse, questionId: null };
+      }
+
+      // SECOND: Check questions
       let bestMatch = null;
       let highestScore = 0;
 
@@ -502,10 +575,106 @@
 
       // Return answer if score is high enough
       if (bestMatch && highestScore >= 2) {
-        return bestMatch.answer;
+        return { answer: bestMatch.answer, questionId: bestMatch.id };
       }
 
-      return "I'm sorry, I don't have an answer for that. Please contact our support team for assistance.";
+      // THIRD: Return fallback message
+      const fallback = this.chatbotData.fallbackMessage || "I'm sorry, I don't have an answer for that. Please contact our support team for assistance.";
+      return { answer: fallback, questionId: null };
+    }
+
+    async createSession() {
+      try {
+        console.log('🔵 Widget: Creating session for chatbot:', this.chatbotId);
+
+        const response = await fetch(`${this.baseUrl}/api/sessions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chatbotId: this.chatbotId }),
+        });
+
+        console.log('🔵 Widget: Session API response status:', response.status);
+
+        if (response.ok) {
+          const data = await response.json();
+          this.sessionId = data.session.id;
+          this.sessionStartTime = data.session.started_at;
+          console.log('✅ Widget: Session created successfully:', this.sessionId);
+        } else {
+          // Log the actual error
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+          console.error('❌ Widget: Failed to create session:', response.status, errorData);
+        }
+      } catch (error) {
+        console.error('❌ Widget: Exception creating session:', error);
+      }
+    }
+
+    async saveMessage(sender, messageText, matchedQuestionId) {
+      if (!this.sessionId) {
+        console.warn('⚠️ Widget: No sessionId, skipping message save');
+        return;
+      }
+
+      try {
+        console.log('🔵 Widget: Saving message:', sender, messageText.substring(0, 50));
+
+        const response = await fetch(`${this.baseUrl}/api/sessions/${this.sessionId}/messages`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sender,
+            message_text: messageText,
+            matched_question_id: matchedQuestionId,
+          }),
+        });
+
+        if (response.ok) {
+          console.log('✅ Widget: Message saved successfully');
+        } else {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+          console.error('❌ Widget: Failed to save message:', response.status, errorData);
+        }
+      } catch (error) {
+        console.error('❌ Widget: Exception saving message:', error);
+      }
+    }
+
+    closeSession() {
+      if (!this.sessionId) return;
+
+      console.log('🔵 Widget: Closing session:', this.sessionId);
+
+      const endTime = new Date().toISOString();
+
+      const data = JSON.stringify({
+        ended_at: endTime,
+        started_at: this.sessionStartTime,
+      });
+
+      const blob = new Blob([data], { type: 'application/json' });
+      // Now endpoint accepts POST
+      const url = `${this.baseUrl}/api/sessions/${this.sessionId}`;
+
+      if (navigator.sendBeacon) {
+        const sent = navigator.sendBeacon(url, blob);
+        console.log('🔵 Widget: sendBeacon result:', sent);
+      } else {
+        // Fallback for older browsers - now using POST
+        fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: data,
+          keepalive: true,
+        }).then(() => {
+          console.log('✅ Widget: Session closed via fetch');
+        }).catch((error) => {
+          console.error('❌ Widget: Error closing session:', error);
+        });
+      }
+
+      this.sessionId = null;
+      this.sessionStartTime = null;
     }
 
     escapeHtml(text) {

@@ -192,6 +192,7 @@ function EditPageContent() {
           {/* Center: Q&A */}
           <div className="lg:col-span-4">
             <QAManager
+              chatbotId={id}
               questions={questions}
               onAdd={handleAddQuestion}
               onUpdate={handleUpdateQuestion}

@@ -26,12 +26,14 @@ interface CrawlWebsiteDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onQuestionsAdd: (questions: Omit<Question, 'id' | 'chatbotId'>[]) => void;
+  chatbotId: string;
 }
 
 export default function CrawlWebsiteDialog({
   open,
   onOpenChange,
   onQuestionsAdd,
+  chatbotId,
 }: CrawlWebsiteDialogProps) {
   const [url, setUrl] = useState('');
   const [loading, setLoading] = useState(false);
@@ -59,7 +61,7 @@ export default function CrawlWebsiteDialog({
       const response = await fetch('/api/crawl', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: finalUrl }),
+        body: JSON.stringify({ url: finalUrl, chatbotId }),
       });
 
       const data = await response.json();

@@ -1,4 +1,5 @@
 import { createClient } from './server'
+import { createServiceClient } from './service-client'
 import type {
   Chatbot,
   Question,
@@ -242,27 +243,33 @@ export async function getCrawledContent(chatbotId: string): Promise<CrawledConte
 
 /**
  * Create a new chat session
+ * Uses service role client to bypass RLS for anonymous widget sessions
  */
 export async function createSession(input: CreateChatSessionInput): Promise<ChatSession> {
-  const supabase = await createClient()
+  const supabase = createServiceClient()
   const { data, error } = await supabase
     .from('chat_sessions')
     .insert({
       ...input,
+      started_at: new Date().toISOString(),
       message_count: 0,
     })
     .select()
     .single()
 
-  if (error) throw error
+  if (error) {
+    console.error('Database error creating session:', error)
+    throw error
+  }
   return data
 }
 
 /**
  * Update a chat session
+ * Uses service role client for widget session updates
  */
 export async function updateSession(id: string, input: UpdateChatSessionInput): Promise<ChatSession> {
-  const supabase = await createClient()
+  const supabase = createServiceClient()
   const { data, error } = await supabase
     .from('chat_sessions')
     .update(input)
@@ -270,7 +277,10 @@ export async function updateSession(id: string, input: UpdateChatSessionInput): 
     .select()
     .single()
 
-  if (error) throw error
+  if (error) {
+    console.error('Database error updating session:', error)
+    throw error
+  }
   return data
 }
 
@@ -319,18 +329,25 @@ export async function getSessionById(id: string): Promise<ChatSession | null> {
 
 /**
  * Create a new chat message
+ * Uses service role client for widget messages
  */
 export async function createMessage(input: CreateChatMessageInput): Promise<ChatMessage> {
-  const supabase = await createClient()
+  const supabase = createServiceClient()
 
   // Create the message
   const { data: message, error: messageError } = await supabase
     .from('chat_messages')
-    .insert(input)
+    .insert({
+      ...input,
+      sent_at: new Date().toISOString(),
+    })
     .select()
     .single()
 
-  if (messageError) throw messageError
+  if (messageError) {
+    console.error('Database error creating message:', messageError)
+    throw messageError
+  }
 
   // Increment message count in session
   const { error: sessionError } = await supabase.rpc('increment_message_count', {
@@ -338,6 +355,7 @@ export async function createMessage(input: CreateChatMessageInput): Promise<Chat
   })
 
   if (sessionError) {
+    console.error('Error incrementing message count:', sessionError)
     // If RPC fails, try manual update as fallback
     const { data: session } = await supabase
       .from('chat_sessions')
