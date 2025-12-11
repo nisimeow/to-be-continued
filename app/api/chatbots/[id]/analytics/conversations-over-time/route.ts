@@ -39,7 +39,7 @@ export async function GET(
     startDate.setDate(startDate.getDate() - days);
 
     // Initialize all dates with 0
-    for (let i = 0; i < days; i++) {
+    for (let i = 0; i <= days; i++) {
       const date = new Date(startDate);
       date.setDate(date.getDate() + i);
       const dateKey = date.toISOString().split('T')[0];

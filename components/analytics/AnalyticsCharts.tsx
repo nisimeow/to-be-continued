@@ -5,8 +5,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   LineChart,
   Line,
-  BarChart,
-  Bar,
   PieChart,
   Pie,
   Cell,
@@ -18,6 +16,7 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { Button } from '@/components/ui/button';
+import { MessageSquare } from 'lucide-react';
 
 interface AnalyticsChartsProps {
   chatbotId: string;
@@ -27,7 +26,7 @@ const COLORS = ['#3B82F6', '#F59E0B', '#10B981', '#8B5CF6'];
 
 export default function AnalyticsCharts({ chatbotId }: AnalyticsChartsProps) {
   const [conversationsData, setConversationsData] = useState<any[]>([]);
-  const [topQuestionsData, setTopQuestionsData] = useState<any[]>([]);
+  const [recentQueriesData, setRecentQueriesData] = useState<any[]>([]);
   const [outcomesData, setOutcomesData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState(30);
@@ -48,11 +47,11 @@ export default function AnalyticsCharts({ chatbotId }: AnalyticsChartsProps) {
         setConversationsData(conversationsData.data || []);
       }
 
-      // Load top questions
-      const topQuestionsRes = await fetch(`/api/chatbots/${chatbotId}/analytics/top-questions`);
-      if (topQuestionsRes.ok) {
-        const topQuestionsData = await topQuestionsRes.json();
-        setTopQuestionsData(topQuestionsData.data || []);
+      // Load recent user queries
+      const recentQueriesRes = await fetch(`/api/chatbots/${chatbotId}/analytics/recent-queries`);
+      if (recentQueriesRes.ok) {
+        const recentQueriesData = await recentQueriesRes.json();
+        setRecentQueriesData(recentQueriesData.data || []);
       }
 
       // Load stats for outcomes
@@ -78,6 +77,16 @@ export default function AnalyticsCharts({ chatbotId }: AnalyticsChartsProps) {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
+  const formatTime = (timeStr: string) => {
+    const date = new Date(timeStr);
+    return date.toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
   const truncateText = (text: string, maxLength: number) => {
     if (text.length <= maxLength) return text;
     return text.substring(0, maxLength) + '...';
@@ -92,7 +101,7 @@ export default function AnalyticsCharts({ chatbotId }: AnalyticsChartsProps) {
   }
 
   const hasConversations = conversationsData.some((d) => d.conversations > 0);
-  const hasTopQuestions = topQuestionsData.length > 0;
+  const hasRecentQueries = recentQueriesData.length > 0;
   const hasOutcomes = outcomesData.some((d) => d.value > 0);
 
   return (
@@ -162,37 +171,27 @@ export default function AnalyticsCharts({ chatbotId }: AnalyticsChartsProps) {
       </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Top Questions */}
+        {/* Recent User Queries */}
         <Card>
           <CardHeader>
-            <CardTitle>Most Asked Questions</CardTitle>
+            <CardTitle>Recent User Queries</CardTitle>
           </CardHeader>
           <CardContent>
-            {hasTopQuestions ? (
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={topQuestionsData} layout="horizontal">
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis type="number" tick={{ fontSize: 12 }} />
-                  <YAxis
-                    type="category"
-                    dataKey="question"
-                    width={150}
-                    tick={{ fontSize: 10 }}
-                    tickFormatter={(value) => truncateText(value, 20)}
-                  />
-                  <Tooltip
-                    contentStyle={{ borderRadius: '8px' }}
-                    formatter={(value, name, props) => [
-                      value,
-                      props.payload.question,
-                    ]}
-                  />
-                  <Bar dataKey="count" fill="#3B82F6" radius={[0, 8, 8, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+            {hasRecentQueries ? (
+              <div className="space-y-3 max-h-[300px] overflow-y-auto">
+                {recentQueriesData.slice(0, 10).map((item: any, index: number) => (
+                  <div key={index} className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg">
+                    <MessageSquare className="w-4 h-4 text-primary mt-1 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-foreground truncate">{truncateText(item.query, 60)}</p>
+                      <p className="text-xs text-muted-foreground mt-1">{formatTime(item.time)}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
             ) : (
               <div className="text-center py-12 text-gray-500">
-                No question matches yet
+                No user queries yet
               </div>
             )}
           </CardContent>
