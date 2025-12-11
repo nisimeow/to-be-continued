@@ -58,26 +58,46 @@ export default function CrawlHistoryDialog({
   const handleRegenerate = async (crawl: CrawledContent) => {
     setRegenerating(crawl.id);
     try {
-      // Call the crawl API again with the same URL
+      console.log('Regenerating FAQs from stored content:', {
+        url: crawl.url,
+        contentLength: crawl.raw_text?.length || 0
+      });
+
+      // Use the stored content instead of re-crawling
       const response = await fetch('/api/crawl', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          url: crawl.url,
+          mode: 'regenerate',
           chatbotId: chatbotId,
+          storedContent: {
+            url: crawl.url,
+            title: crawl.extracted_title,
+            description: crawl.extracted_description,
+            content: crawl.raw_text,
+          },
         }),
       });
 
-      if (!response.ok) throw new Error('Failed to regenerate Q&As');
-
       const data = await response.json();
+
+      if (!response.ok) {
+        console.error('Regeneration failed:', data.error);
+        throw new Error(data.error || 'Failed to regenerate Q&As');
+      }
+
+      if (!data.questions || data.questions.length === 0) {
+        throw new Error('No questions were generated');
+      }
+
+      console.log(`Generated ${data.questions.length} questions from stored content`);
       toast.success(`Generated ${data.questions.length} new questions from this URL!`);
 
       // Trigger a refresh of questions in parent component
       window.dispatchEvent(new CustomEvent('questionsUpdated'));
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error regenerating Q&As:', error);
-      toast.error('Failed to regenerate Q&As');
+      toast.error(error.message || 'Failed to regenerate Q&As');
     } finally {
       setRegenerating(null);
     }

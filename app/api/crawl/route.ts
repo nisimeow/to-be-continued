@@ -2,86 +2,172 @@ import { NextResponse } from 'next/server';
 import * as cheerio from 'cheerio';
 import { saveCrawledContent } from '@/lib/supabase/database';
 
-const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+// Using gemini-1.5-flash (has separate quota from 2.0)
+const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro-latest:generateContent';
 
 export async function POST(request: Request) {
   try {
-    const { url, chatbotId } = await request.json();
+    const { url, chatbotId, mode = 'single_url', sources, extractOnly, storedContent } = await request.json();
 
-    if (!url) {
-      return NextResponse.json(
-        { error: 'URL is required' },
-        { status: 400 }
-      );
+    // ==========================================
+    // MODE: REGENERATE FROM STORED CONTENT
+    // ==========================================
+    if (mode === 'regenerate' && storedContent) {
+      console.log('Regenerating FAQs from stored content...');
+
+      const geminiPrompt = `You are a helpful assistant that creates FAQ questions and answers based on website content.
+
+Website Title: ${storedContent.title || 'N/A'}
+Description: ${storedContent.description || 'N/A'}
+
+Content:
+${storedContent.content}
+
+Based on this content, generate exactly 5 frequently asked questions with SHORT, CONCISE answers. Focus on:
+- Practical questions users would actually ask
+- CONCISE answers (1-2 sentences max, under 100 words)
+- Be direct and friendly, not overly formal
+- Relevant keywords for pattern matching (6-8 keywords per question, including variations)
+
+IMPORTANT:
+- Keep answers SHORT and conversational
+- Avoid unnecessary explanations
+- Get straight to the point
+
+Return ONLY valid JSON in this exact format (no markdown, no code blocks, just raw JSON):
+[
+  {
+    "question": "Question here?",
+    "answer": "Short, concise answer here.",
+    "keywords": ["keyword1", "keyword2", "keyword3", "keyword4", "keyword5", "keyword6"]
+  }
+]
+
+Make sure questions are specific to this website's content.`;
+
+      let questions: any[] = [];
+      try {
+        const generatedText = await callGemini(geminiPrompt);
+        questions = parseGeminiResponse(generatedText);
+      } catch (genError) {
+        console.warn('Regeneration failed (continuing with existing):', genError);
+        questions = [
+          {
+            question: "Question generation failed",
+            answer: "Please check your API key or model availability.",
+            keywords: ["error"]
+          }
+        ];
+      }
+
+      return NextResponse.json({
+        success: true,
+        questions,
+        metadata: {
+          url: storedContent.url,
+          title: storedContent.title,
+          contentLength: storedContent.content?.length || 0,
+        },
+      });
     }
 
-    if (!chatbotId) {
-      return NextResponse.json(
-        { error: 'Chatbot ID is required' },
-        { status: 400 }
-      );
+    // ==========================================
+    // MODE: BATCH GENERATION (AI ONLY)
+    // ==========================================
+    if (mode === 'batch_generate') {
+      if (!sources || !Array.isArray(sources) || sources.length === 0) {
+        return NextResponse.json({ error: 'No sources provided for generation' }, { status: 400 });
+      }
+
+      console.log(`Batch generating FAQs from ${sources.length} pages...`);
+
+      // Combine content from all pages
+      // Limit total context window to avoid token limits (approx 30k chars)
+      const combinedContent = sources
+        .map((s: any) => `URL: ${s.url}\nTITLE: ${s.title}\nCONTENT:\n${s.content}\n---\n`)
+        .join('\n')
+        .substring(0, 30000);
+
+      const geminiPrompt = `You are a helpful assistant that creates FAQ questions and answers based on website content.
+
+Context from ${sources.length} pages:
+${combinedContent}
+
+Based on this content, generate exactly 5 frequently asked questions with SHORT, CONCISE answers. Focus on:
+- The most important questions across the entire website
+- De-duplicate similar topics
+- CONCISE answers (1-2 sentences max, under 100 words)
+- Relevant keywords for pattern matching (6-8 keywords per question)
+
+Return ONLY valid JSON in this exact format:
+[
+  {
+    "question": "Question here?",
+    "answer": "Short, concise answer here.",
+    "keywords": ["keyword1", "keyword2"]
+  }
+]`;
+
+      const generatedText = await callGemini(geminiPrompt);
+      const questions = parseGeminiResponse(generatedText);
+
+      // Save generated questions to database if needed (optional, or frontend handles it)
+      // For now, just return them to the frontend
+
+      return NextResponse.json({
+        success: true,
+        questions: questions
+      });
     }
 
-    // Validate URL format
+    // ==========================================
+    // MODE: SINGLE URL (CRAWL ONLY or LEGACY)
+    // ==========================================
+
+    if (!url) return NextResponse.json({ error: 'URL is required' }, { status: 400 });
+    if (!chatbotId) return NextResponse.json({ error: 'Chatbot ID is required' }, { status: 400 });
+
     let validUrl: URL;
     try {
       validUrl = new URL(url);
     } catch {
-      return NextResponse.json(
-        { error: 'Invalid URL format. Please include http:// or https://' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Invalid URL format' }, { status: 400 });
     }
 
-    // Step 1: Fetch the webpage
-    console.log('Fetching:', validUrl.toString());
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-
-    const response = await fetch(validUrl.toString(), {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; ChatbotBuilder/1.0)',
-      },
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeoutId);
-
+    // 1. Fetch
+    const response = await fetchWithTimeout(validUrl.toString());
     if (!response.ok) {
       return NextResponse.json(
-        { error: `Failed to fetch website. Status: ${response.status}. The site may be blocking automated access.` },
+        { error: `Failed to fetch website. Status: ${response.status}` },
         { status: response.status }
       );
     }
 
+    // 2. Extract
     const html = await response.text();
-
-    // Step 2: Extract content using Cheerio
     const $ = cheerio.load(html);
-
-    // Remove unwanted elements
     $('script, style, nav, footer, header, iframe, noscript, svg').remove();
-
-    // Extract text content
     const title = $('title').text().trim() || $('h1').first().text().trim();
     const metaDescription = $('meta[name="description"]').attr('content') || '';
 
-    // Get main content (prioritize article, main, or body)
-    let mainContent = '';
-    if ($('article').length) {
-      mainContent = $('article').text();
-    } else if ($('main').length) {
-      mainContent = $('main').text();
-    } else {
-      mainContent = $('body').text();
-    }
+    // Internal Links extraction
+    const links = new Set<string>();
+    const baseUrlObj = new URL(validUrl.toString());
+    const domain = baseUrlObj.hostname;
+    $('a').each((_, element) => {
+      const href = $(element).attr('href');
+      if (href) {
+        try {
+          const absoluteUrl = new URL(href, validUrl.toString());
+          if (absoluteUrl.hostname === domain && !absoluteUrl.hash && !/\.(jpg|jpeg|png|gif|pdf|zip|css|js|xml|ico)$/i.test(absoluteUrl.pathname)) {
+            links.add(absoluteUrl.toString().replace(/\/$/, ''));
+          }
+        } catch (e) { }
+      }
+    });
 
-    // Clean up whitespace
-    mainContent = mainContent
-      .replace(/\s+/g, ' ')
-      .trim()
-      .substring(0, 6000); // Limit to 6000 chars for free tier
+    let mainContent = $('article').text() || $('main').text() || $('body').text();
+    mainContent = mainContent.replace(/\s+/g, ' ').trim().substring(0, 6000);
 
     if (mainContent.length < 100) {
       return NextResponse.json(
@@ -90,25 +176,51 @@ export async function POST(request: Request) {
       );
     }
 
-    console.log('Extracted content length:', mainContent.length);
+    console.log(`Extracted ${mainContent.length} characters from ${validUrl.toString()}`);
 
-    // Step 2.5: Store extracted content in database BEFORE calling AI
+    // Save to DB
     try {
-      const crawledContent = await saveCrawledContent({
+      await saveCrawledContent({
         chatbot_id: chatbotId,
         url: validUrl.toString(),
         raw_text: mainContent,
         extracted_title: title || null,
         extracted_description: metaDescription || null,
       });
-      console.log('Stored crawled content:', crawledContent.id);
-    } catch (error) {
-      console.error('Failed to store crawled content:', error);
-      // Continue anyway - we still want to generate Q&As
+    } catch (e) {
+      console.error('DB Save error:', e);
     }
 
-    // Step 3: Generate Q&As using Gemini REST API with IMPROVED PROMPT
-    const geminiPrompt = `You are a helpful assistant that creates FAQ questions and answers based on website content.
+    // IF Batch Mode was requested (implied by call type), we might just return text
+    // But for backward compatibility, if mode is 'single_url' AND we want AI, we do it.
+    // Ideally, for the new "Crawl Strategy", we just return the text.
+    // Let's assume if the frontend passes `skipAI: true` (which we can read from body properties we haven't destructured yet, or just rely on 'mode')
+
+    // For this refactor, let's treat 'single_url' as "Do everything" (Legacy)
+    // AND add a check. If the user wants just extraction, they should have used a different mode or flag.
+    // Let's accept a 'skipAI' flag for the "scrapping phase" of the batch process.
+
+    // RE-READING request.json() to get skipAI
+    // We already destructured. Let's add extractOnly
+
+
+    if (extractOnly) {
+      return NextResponse.json({
+        success: true,
+        metadata: {
+          url: validUrl.toString(),
+          title,
+          contentLength: mainContent.length,
+          links: Array.from(links).slice(0, 20),
+          content: mainContent // Return content for client-side accumulation
+        },
+      });
+    }
+
+    // 3. Generate FAQs (Optional - Soft Fail)
+    let questions: any[] = [];
+    try {
+      const geminiPrompt = `You are a helpful assistant that creates FAQ questions and answers based on website content.
 
 Website Title: ${title}
 Description: ${metaDescription}
@@ -138,125 +250,120 @@ Return ONLY valid JSON in this exact format (no markdown, no code blocks, just r
 
 Make sure questions are specific to this website's content.`;
 
-    const geminiResponse = await fetch(GEMINI_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': process.env.GEMINI_API_KEY!,
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              {
-                text: geminiPrompt,
-              },
-            ],
-          },
-        ],
-      }),
-    });
-
-    if (!geminiResponse.ok) {
-      const errorData = await geminiResponse.json();
-      console.error('Gemini API error:', errorData);
-      return NextResponse.json(
+      const generatedText = await callGemini(geminiPrompt);
+      questions = parseGeminiResponse(generatedText);
+    } catch (genError) {
+      console.warn('FAQ Generation failed (continuing with crawl only):', genError);
+      // We continue without questions. The content is already saved to DB.
+      // We can add a "default" question if we want, or just empty.
+      questions = [
         {
-          error: 'AI service error. Content was saved, but Q&A generation failed.',
-          metadata: {
-            url: validUrl.toString(),
-            title,
-            contentLength: mainContent.length,
-          }
-        },
-        { status: 500 }
-      );
+          question: "What is this website about?",
+          answer: metaDescription || "I can answer questions based on the content of this website.",
+          keywords: ["about", "summary", "info"]
+        }
+      ];
     }
-
-    const geminiData = await geminiResponse.json();
-
-    // Extract text from Gemini response
-    const generatedText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
-
-    if (!generatedText) {
-      return NextResponse.json(
-        { error: 'No content generated. Please try again.' },
-        { status: 500 }
-      );
-    }
-
-    console.log('AI Response:', generatedText);
-
-    // Parse JSON response (handle markdown code blocks if present)
-    let jsonText = generatedText.trim();
-
-    // Remove markdown code blocks if present
-    if (jsonText.startsWith('```json')) {
-      jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '');
-    } else if (jsonText.startsWith('```')) {
-      jsonText = jsonText.replace(/```\n?/g, '');
-    }
-
-    const questions = JSON.parse(jsonText);
-
-    // Validate structure
-    if (!Array.isArray(questions) || questions.length === 0) {
-      return NextResponse.json(
-        { error: 'Failed to generate valid questions. Please try again.' },
-        { status: 500 }
-      );
-    }
-
-    // Ensure each question has required fields
-    const validQuestions = questions
-      .filter(q => q.question && q.answer && Array.isArray(q.keywords))
-      .map(q => ({
-        question: q.question.trim(),
-        answer: q.answer.trim(),
-        keywords: q.keywords.map((k: string) => k.trim().toLowerCase()),
-      }))
-      .slice(0, 5); // Ensure max 5 questions
-
-    console.log('Generated questions:', validQuestions.length);
 
     return NextResponse.json({
       success: true,
-      questions: validQuestions,
+      questions,
       metadata: {
         url: validUrl.toString(),
         title,
         contentLength: mainContent.length,
+        links: Array.from(links).slice(0, 20),
+        warning: questions.length === 1 ? 'FAQ generation failed, using default.' : undefined
       },
     });
 
   } catch (error: any) {
-    console.error('Crawl error:', error);
+    console.error('Crawl Error:', error);
+    return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
+  }
+}
 
-    // Handle specific errors
-    if (error.name === 'AbortError') {
-      return NextResponse.json(
-        { error: 'Request timeout. The website took too long to respond.' },
-        { status: 408 }
-      );
+// Helper: Fetch with Timeout
+async function fetchWithTimeout(url: string, ms = 10000) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), ms);
+  try {
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; ChatbotBuilder/1.0)' },
+      signal: controller.signal
+    });
+    clearTimeout(id);
+    return res;
+  } catch (e) {
+    clearTimeout(id);
+    throw e;
+  }
+}
+
+// Helper: Call Gemini
+async function callGemini(prompt: string) {
+  // Use dedicated generation key for FAQ generation (separate quota)
+  const apiKey = process.env.GEMINI_API_KEY_GENERATION || process.env.GEMINI_API_KEY;
+
+  if (!apiKey) {
+    throw new Error('GEMINI_API_KEY_GENERATION or GEMINI_API_KEY environment variable is not set');
+  }
+
+  console.log('Calling Gemini API for FAQ generation...');
+  console.log('Using API key:', apiKey.substring(0, 10) + '...');
+
+  const response = await fetch(GEMINI_API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    console.error('Gemini API Error:', response.status, errorData);
+    throw new Error(`Gemini API Error: ${response.status} - ${JSON.stringify(errorData)}`);
+  }
+
+  const data = await response.json();
+  const generatedText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+  if (!generatedText) {
+    console.error('Gemini returned empty response:', data);
+    throw new Error('Gemini returned no content. The API may have blocked the request.');
+  }
+
+  console.log('Gemini response received, length:', generatedText.length);
+  return generatedText;
+}
+
+// Helper: Parse Gemini
+function parseGeminiResponse(text: string) {
+  console.log('Parsing Gemini response...');
+  let jsonText = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+
+  try {
+    const parsed = JSON.parse(jsonText);
+
+    if (!Array.isArray(parsed)) {
+      console.error('Gemini response is not an array:', parsed);
+      throw new Error('Invalid response format - expected array of questions');
     }
 
-    if (error.message?.includes('fetch')) {
-      return NextResponse.json(
-        { error: 'Could not connect to the website. It may be down or blocking automated access.' },
-        { status: 500 }
-      );
-    }
-
-    if (error instanceof SyntaxError) {
-      return NextResponse.json(
-        { error: 'Failed to parse AI response. Please try again.' },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json(
-      { error: 'An unexpected error occurred. Please try again or add questions manually.' },
-      { status: 500 }
+    const validQuestions = parsed.filter(q =>
+      q.question && q.answer && Array.isArray(q.keywords)
     );
+
+    console.log(`Parsed ${validQuestions.length} valid questions from ${parsed.length} total`);
+
+    if (validQuestions.length === 0) {
+      console.error('No valid questions found in response:', parsed);
+      throw new Error('No valid questions generated. Please try again.');
+    }
+
+    return validQuestions;
+  } catch (e) {
+    console.error('Failed to parse Gemini response:', e);
+    console.error('Raw response text:', text.substring(0, 500));
+    throw new Error(`Failed to parse AI response: ${e instanceof Error ? e.message : 'Invalid JSON'}`);
   }
 }

@@ -1,4 +1,4 @@
-(function() {
+(function () {
   'use strict';
 
   // Get chatbot ID and API base URL from script tag
@@ -484,25 +484,64 @@
         await this.createSession();
       }
 
-      // Save user message
+      // Save user message (Frontend still saves user message)
       await this.saveMessage('user', userMessage, null);
 
       this.addTypingIndicator();
 
-      setTimeout(async () => {
+      try {
+        // SERVER-SIDE RAG LOGIC
+        // 1. Check local simple patterns first (Greeting, etc.) to save API calls
+        // Note: The user requested "answers should work through gemini api from the knowledge base"
+        // But also "generic answers like hi hello could be done".
+        // Let's keep the `checkDefaultResponse` check.
+        const defaultResponse = this.checkDefaultResponse(userMessage);
+
+        if (defaultResponse) {
+          this.removeTypingIndicator();
+          this.addMessage('bot', defaultResponse);
+          // Save this locally-generated message
+          await this.saveMessage('bot', defaultResponse, null);
+          this.sendButton.disabled = false;
+          this.input.focus();
+          return;
+        }
+
+        // 2. Call Server API
+        const response = await fetch(`${this.baseUrl}/api/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chatbotId: this.chatbotId,
+            message: userMessage,
+            sessionId: this.sessionId
+          }),
+        });
+
+        const data = await response.json();
+
         this.removeTypingIndicator();
-        const matchResult = this.patternMatchWithId(userMessage);
-        const botResponse = matchResult.answer;
-        const matchedQuestionId = matchResult.questionId;
 
-        this.addMessage('bot', botResponse);
+        if (data.success) {
+          this.addMessage('bot', data.answer);
+          // NOTE: The Server API ALREADY saved the bot message to DB.
+          // So we do NOT call saveMessage here for the bot response.
+        } else {
+          // Fallback
+          const fallback = this.chatbotData.fallbackMessage || "I'm having trouble connecting right now.";
+          this.addMessage('bot', fallback);
+          await this.saveMessage('bot', fallback, null);
+        }
 
-        // Save bot message
-        await this.saveMessage('bot', botResponse, matchedQuestionId);
-
+      } catch (err) {
+        console.error('Chat error:', err);
+        this.removeTypingIndicator();
+        const fallback = this.chatbotData.fallbackMessage || "I'm having trouble connecting right now.";
+        this.addMessage('bot', fallback);
+      } finally {
         this.sendButton.disabled = false;
         this.input.focus();
-      }, 800);
+      }
     }
 
     checkDefaultResponse(message) {
@@ -526,62 +565,8 @@
       return null;
     }
 
-    patternMatch(userMessage) {
-      const result = this.patternMatchWithId(userMessage);
-      return result.answer;
-    }
-
-    patternMatchWithId(userMessage) {
-      const message = userMessage.toLowerCase().trim();
-
-      // FIRST: Check for default/generic responses (hi, thanks, bye, etc.)
-      const defaultResponse = this.checkDefaultResponse(message);
-      if (defaultResponse) {
-        return { answer: defaultResponse, questionId: null };
-      }
-
-      // SECOND: Check questions
-      let bestMatch = null;
-      let highestScore = 0;
-
-      for (const qa of this.chatbotData.questions) {
-        let score = 0;
-
-        // Check keywords (highest weight)
-        for (const keyword of qa.keywords) {
-          if (message.includes(keyword.toLowerCase())) {
-            score += 3;
-          }
-        }
-
-        // Check question words
-        const questionWords = qa.question.toLowerCase().split(' ').filter(w => w.length > 3);
-        for (const word of questionWords) {
-          if (message.includes(word)) {
-            score += 1;
-          }
-        }
-
-        // Exact question match bonus
-        if (message === qa.question.toLowerCase()) {
-          score += 10;
-        }
-
-        if (score > highestScore) {
-          highestScore = score;
-          bestMatch = qa;
-        }
-      }
-
-      // Return answer if score is high enough
-      if (bestMatch && highestScore >= 2) {
-        return { answer: bestMatch.answer, questionId: bestMatch.id };
-      }
-
-      // THIRD: Return fallback message
-      const fallback = this.chatbotData.fallbackMessage || "I'm sorry, I don't have an answer for that. Please contact our support team for assistance.";
-      return { answer: fallback, questionId: null };
-    }
+    // Legacy pattern match functions (kept just in case, or we can remove patternMatchWithId entirely)
+    // We are no longer using these for main logic.
 
     async createSession() {
       try {
