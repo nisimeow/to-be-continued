@@ -1,16 +1,20 @@
 import { NextResponse } from 'next/server';
 import { createSession } from '@/lib/supabase/database';
 
-// CORS headers for cross-origin requests
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-};
+// Helper to get CORS headers based on request origin
+function getCorsHeaders(requestOrigin: string | null) {
+  return {
+    'Access-Control-Allow-Origin': requestOrigin || '*',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Credentials': 'true',
+  };
+}
 
 // Handle OPTIONS request for CORS preflight
-export async function OPTIONS() {
-  return NextResponse.json({}, { headers: corsHeaders });
+export async function OPTIONS(request: Request) {
+  const origin = request.headers.get('origin');
+  return NextResponse.json({}, { headers: getCorsHeaders(origin) });
 }
 
 export async function POST(request: Request) {
@@ -24,7 +28,7 @@ export async function POST(request: Request) {
       console.error('❌ Missing chatbotId in request');
       return NextResponse.json(
         { error: 'Chatbot ID is required' },
-        { status: 400, headers: corsHeaders }
+        { status: 400, headers: getCorsHeaders(request.headers.get('origin')) }
       );
     }
 
@@ -37,7 +41,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       session,
-    }, { headers: corsHeaders });
+    }, { headers: getCorsHeaders(request.headers.get('origin')) });
   } catch (error) {
     console.error('❌ Error creating session:', error);
     return NextResponse.json(
@@ -45,7 +49,7 @@ export async function POST(request: Request) {
         error: 'Failed to create session',
         details: error instanceof Error ? error.message : 'Unknown error'
       },
-      { status: 500, headers: corsHeaders }
+      { status: 500, headers: getCorsHeaders(request.headers.get('origin')) }
     );
   }
 }

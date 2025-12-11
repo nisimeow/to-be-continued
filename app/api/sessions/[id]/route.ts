@@ -1,16 +1,20 @@
 import { NextResponse } from 'next/server';
 import { getSessionById, updateSession } from '@/lib/supabase/database';
 
-// CORS headers for cross-origin requests
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-};
+// Helper to get CORS headers based on request origin
+function getCorsHeaders(requestOrigin: string | null) {
+  return {
+    'Access-Control-Allow-Origin': requestOrigin || '*', // Echo origin or wildcard
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Credentials': 'true', // Needed for sendBeacon/credentials: include
+  };
+}
 
 // Handle OPTIONS request for CORS preflight
-export async function OPTIONS() {
-  return NextResponse.json({}, { headers: corsHeaders });
+export async function OPTIONS(request: Request) {
+  const origin = request.headers.get('origin');
+  return NextResponse.json({}, { headers: getCorsHeaders(origin) });
 }
 
 export async function GET(
@@ -23,7 +27,7 @@ export async function GET(
     if (!id) {
       return NextResponse.json(
         { error: 'Session ID is required' },
-        { status: 400, headers: corsHeaders }
+        { status: 400, headers: getCorsHeaders(request.headers.get('origin')) }
       );
     }
 
@@ -32,19 +36,19 @@ export async function GET(
     if (!session) {
       return NextResponse.json(
         { error: 'Session not found' },
-        { status: 404, headers: corsHeaders }
+        { status: 404, headers: getCorsHeaders(request.headers.get('origin')) }
       );
     }
 
     return NextResponse.json({
       success: true,
       session,
-    }, { headers: corsHeaders });
+    }, { headers: getCorsHeaders(request.headers.get('origin')) });
   } catch (error) {
     console.error('❌ Error fetching session:', error);
     return NextResponse.json(
       { error: 'Failed to fetch session' },
-      { status: 500, headers: corsHeaders }
+      { status: 500, headers: getCorsHeaders(request.headers.get('origin')) }
     );
   }
 }
@@ -63,7 +67,7 @@ async function handleSessionUpdate(
     if (!id) {
       return NextResponse.json(
         { error: 'Session ID is required' },
-        { status: 400, headers: corsHeaders }
+        { status: 400, headers: getCorsHeaders(request.headers.get('origin')) }
       );
     }
 
@@ -82,7 +86,7 @@ async function handleSessionUpdate(
     return NextResponse.json({
       success: true,
       session,
-    }, { headers: corsHeaders });
+    }, { headers: getCorsHeaders(request.headers.get('origin')) });
   } catch (error) {
     console.error('❌ Error updating session:', error);
     return NextResponse.json(
@@ -90,7 +94,7 @@ async function handleSessionUpdate(
         error: 'Failed to update session',
         details: error instanceof Error ? error.message : 'Unknown error'
       },
-      { status: 500, headers: corsHeaders }
+      { status: 500, headers: getCorsHeaders(request.headers.get('origin')) }
     );
   }
 }

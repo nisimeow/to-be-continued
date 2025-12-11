@@ -1,16 +1,20 @@
 import { NextResponse } from 'next/server';
 import { createMessage, getSessionMessages } from '@/lib/supabase/database';
 
-// CORS headers for cross-origin requests
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-};
+// Helper to get CORS headers based on request origin
+function getCorsHeaders(requestOrigin: string | null) {
+  return {
+    'Access-Control-Allow-Origin': requestOrigin || '*',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Credentials': 'true',
+  };
+}
 
 // Handle OPTIONS request for CORS preflight
-export async function OPTIONS() {
-  return NextResponse.json({}, { headers: corsHeaders });
+export async function OPTIONS(request: Request) {
+  const origin = request.headers.get('origin');
+  return NextResponse.json({}, { headers: getCorsHeaders(origin) });
 }
 
 export async function GET(
@@ -23,7 +27,7 @@ export async function GET(
     if (!id) {
       return NextResponse.json(
         { error: 'Session ID is required' },
-        { status: 400, headers: corsHeaders }
+        { status: 400, headers: getCorsHeaders(request.headers.get('origin')) }
       );
     }
 
@@ -32,12 +36,12 @@ export async function GET(
     return NextResponse.json({
       success: true,
       messages,
-    }, { headers: corsHeaders });
+    }, { headers: getCorsHeaders(request.headers.get('origin')) });
   } catch (error) {
     console.error('❌ Error fetching messages:', error);
     return NextResponse.json(
       { error: 'Failed to fetch messages' },
-      { status: 500, headers: corsHeaders }
+      { status: 500, headers: getCorsHeaders(request.headers.get('origin')) }
     );
   }
 }
@@ -55,7 +59,7 @@ export async function POST(
     if (!id) {
       return NextResponse.json(
         { error: 'Session ID is required' },
-        { status: 400, headers: corsHeaders }
+        { status: 400, headers: getCorsHeaders(request.headers.get('origin')) }
       );
     }
 
@@ -65,7 +69,7 @@ export async function POST(
       console.error('❌ Missing required fields:', { sender, message_text });
       return NextResponse.json(
         { error: 'Sender and message_text are required' },
-        { status: 400, headers: corsHeaders }
+        { status: 400, headers: getCorsHeaders(request.headers.get('origin')) }
       );
     }
 
@@ -81,7 +85,7 @@ export async function POST(
     return NextResponse.json({
       success: true,
       message,
-    }, { headers: corsHeaders });
+    }, { headers: getCorsHeaders(request.headers.get('origin')) });
   } catch (error) {
     console.error('❌ Error creating message:', error);
     return NextResponse.json(
@@ -89,7 +93,7 @@ export async function POST(
         error: 'Failed to create message',
         details: error instanceof Error ? error.message : 'Unknown error'
       },
-      { status: 500, headers: corsHeaders }
+      { status: 500, headers: getCorsHeaders(request.headers.get('origin')) }
     );
   }
 }

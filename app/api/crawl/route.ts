@@ -1,9 +1,12 @@
 import { NextResponse } from 'next/server';
 import * as cheerio from 'cheerio';
 import { saveCrawledContent } from '@/lib/supabase/database';
+import OpenAI from "openai";
 
-// Using gemini-1.5-flash (has separate quota from 2.0)
-const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro-latest:generateContent';
+// Using GitHub Models (OpenAI SDK)
+const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
+const ENDPOINT = "https://models.github.ai/inference";
+const MODEL_NAME = "gpt-4o";
 
 export async function POST(request: Request) {
   try {
@@ -13,9 +16,9 @@ export async function POST(request: Request) {
     // MODE: REGENERATE FROM STORED CONTENT
     // ==========================================
     if (mode === 'regenerate' && storedContent) {
-      console.log('Regenerating FAQs from stored content...');
+      console.log('Regenerating FAQs from stored content (OpenAI)...');
 
-      const geminiPrompt = `You are a helpful assistant that creates FAQ questions and answers based on website content.
+      const prompt = `You are a helpful assistant that creates FAQ questions and answers based on website content.
 
 Website Title: ${storedContent.title || 'N/A'}
 Description: ${storedContent.description || 'N/A'}
@@ -23,7 +26,7 @@ Description: ${storedContent.description || 'N/A'}
 Content:
 ${storedContent.content}
 
-Based on this content, generate exactly 5 frequently asked questions with SHORT, CONCISE answers. Focus on:
+Based on this content, generate exactly 2 frequently asked questions with SHORT, CONCISE answers. Focus on:
 - Practical questions users would actually ask
 - CONCISE answers (1-2 sentences max, under 100 words)
 - Be direct and friendly, not overly formal
@@ -47,8 +50,8 @@ Make sure questions are specific to this website's content.`;
 
       let questions: any[] = [];
       try {
-        const generatedText = await callGemini(geminiPrompt);
-        questions = parseGeminiResponse(generatedText);
+        const generatedText = await callOpenAI(prompt);
+        questions = parseResponse(generatedText);
       } catch (genError) {
         console.warn('Regeneration failed (continuing with existing):', genError);
         questions = [
@@ -79,7 +82,7 @@ Make sure questions are specific to this website's content.`;
         return NextResponse.json({ error: 'No sources provided for generation' }, { status: 400 });
       }
 
-      console.log(`Batch generating FAQs from ${sources.length} pages...`);
+      console.log(`Batch generating FAQs from ${sources.length} pages (OpenAI)...`);
 
       // Combine content from all pages
       // Limit total context window to avoid token limits (approx 30k chars)
@@ -88,12 +91,12 @@ Make sure questions are specific to this website's content.`;
         .join('\n')
         .substring(0, 30000);
 
-      const geminiPrompt = `You are a helpful assistant that creates FAQ questions and answers based on website content.
+      const prompt = `You are a helpful assistant that creates FAQ questions and answers based on website content.
 
 Context from ${sources.length} pages:
 ${combinedContent}
 
-Based on this content, generate exactly 5 frequently asked questions with SHORT, CONCISE answers. Focus on:
+Based on this content, generate exactly 2 frequently asked questions with SHORT, CONCISE answers. Focus on:
 - The most important questions across the entire website
 - De-duplicate similar topics
 - CONCISE answers (1-2 sentences max, under 100 words)
@@ -108,8 +111,8 @@ Return ONLY valid JSON in this exact format:
   }
 ]`;
 
-      const generatedText = await callGemini(geminiPrompt);
-      const questions = parseGeminiResponse(generatedText);
+      const generatedText = await callOpenAI(prompt);
+      const questions = parseResponse(generatedText);
 
       // Save generated questions to database if needed (optional, or frontend handles it)
       // For now, just return them to the frontend
@@ -220,7 +223,7 @@ Return ONLY valid JSON in this exact format:
     // 3. Generate FAQs (Optional - Soft Fail)
     let questions: any[] = [];
     try {
-      const geminiPrompt = `You are a helpful assistant that creates FAQ questions and answers based on website content.
+      const prompt = `You are a helpful assistant that creates FAQ questions and answers based on website content.
 
 Website Title: ${title}
 Description: ${metaDescription}
@@ -228,7 +231,7 @@ Description: ${metaDescription}
 Content:
 ${mainContent}
 
-Based on this content, generate exactly 5 frequently asked questions with SHORT, CONCISE answers. Focus on:
+Based on this content, generate exactly 2 frequently asked questions with SHORT, CONCISE answers. Focus on:
 - Practical questions users would actually ask
 - CONCISE answers (1-2 sentences max, under 100 words)
 - Be direct and friendly, not overly formal
@@ -250,8 +253,8 @@ Return ONLY valid JSON in this exact format (no markdown, no code blocks, just r
 
 Make sure questions are specific to this website's content.`;
 
-      const generatedText = await callGemini(geminiPrompt);
-      questions = parseGeminiResponse(generatedText);
+      const generatedText = await callOpenAI(prompt);
+      questions = parseResponse(generatedText);
     } catch (genError) {
       console.warn('FAQ Generation failed (continuing with crawl only):', genError);
       // We continue without questions. The content is already saved to DB.
@@ -300,52 +303,46 @@ async function fetchWithTimeout(url: string, ms = 10000) {
   }
 }
 
-// Helper: Call Gemini
-async function callGemini(prompt: string) {
-  // Use dedicated generation key for FAQ generation (separate quota)
-  const apiKey = process.env.GEMINI_API_KEY_GENERATION || process.env.GEMINI_API_KEY;
-
-  if (!apiKey) {
-    throw new Error('GEMINI_API_KEY_GENERATION or GEMINI_API_KEY environment variable is not set');
+// Helper: Call OpenAI
+async function callOpenAI(prompt: string) {
+  if (!GITHUB_TOKEN) {
+    throw new Error('GITHUB_TOKEN environment variable is not set');
   }
 
-  console.log('Calling Gemini API for FAQ generation...');
-  console.log('Using API key:', apiKey.substring(0, 10) + '...');
+  console.log('Calling OpenAI (GitHub Models) for FAQ generation...');
+  const client = new OpenAI({ baseURL: ENDPOINT, apiKey: GITHUB_TOKEN });
 
-  const response = await fetch(GEMINI_API_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+  const response = await client.chat.completions.create({
+    messages: [
+      { role: "system", content: "You are a helpful assistant that generates JSON." },
+      { role: "user", content: prompt }
+    ],
+    temperature: 0.3,
+    max_tokens: 1000,
+    model: MODEL_NAME
   });
 
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    console.error('Gemini API Error:', response.status, errorData);
-    throw new Error(`Gemini API Error: ${response.status} - ${JSON.stringify(errorData)}`);
-  }
-
-  const data = await response.json();
-  const generatedText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  const generatedText = response.choices[0].message.content || '';
 
   if (!generatedText) {
-    console.error('Gemini returned empty response:', data);
-    throw new Error('Gemini returned no content. The API may have blocked the request.');
+    console.error('OpenAI returned empty response');
+    throw new Error('OpenAI returned no content.');
   }
 
-  console.log('Gemini response received, length:', generatedText.length);
+  console.log('OpenAI response received, length:', generatedText.length);
   return generatedText;
 }
 
-// Helper: Parse Gemini
-function parseGeminiResponse(text: string) {
-  console.log('Parsing Gemini response...');
+// Helper: Parse Response
+function parseResponse(text: string) {
+  console.log('Parsing OpenAI response...');
   let jsonText = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
 
   try {
     const parsed = JSON.parse(jsonText);
 
     if (!Array.isArray(parsed)) {
-      console.error('Gemini response is not an array:', parsed);
+      console.error('Response is not an array:', parsed);
       throw new Error('Invalid response format - expected array of questions');
     }
 
@@ -362,7 +359,7 @@ function parseGeminiResponse(text: string) {
 
     return validQuestions;
   } catch (e) {
-    console.error('Failed to parse Gemini response:', e);
+    console.error('Failed to parse response:', e);
     console.error('Raw response text:', text.substring(0, 500));
     throw new Error(`Failed to parse AI response: ${e instanceof Error ? e.message : 'Invalid JSON'}`);
   }
