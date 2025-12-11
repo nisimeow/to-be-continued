@@ -57,6 +57,7 @@ export async function POST(
     // Create chatbot
     const newChatbot = await createChatbot({
       user_id: userId,
+      custom_context: '', // Default empty context
       ...validatedData,
     });
 

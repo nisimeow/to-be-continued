@@ -12,6 +12,7 @@ const updateChatbotSchema = z.object({
   }).optional(),
   welcome_message: z.string().min(1).max(500).optional(),
   fallback_message: z.string().min(1).max(500).optional(),
+  custom_context: z.string().max(2000).optional(),
   is_active: z.boolean().optional(),
 });
 

@@ -4,9 +4,9 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
-import { Chatbot, Question } from '@/lib/types';
+import { Chatbot } from '@/lib/types';
 import ChatbotSettings from '@/components/dashboard/ChatbotSettings';
-import QAManager from '@/components/dashboard/QAManager';
+import CustomContextEditor from '@/components/dashboard/CustomContextEditor';
 import WidgetPreview from '@/components/dashboard/WidgetPreview';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
@@ -19,7 +19,6 @@ function EditPageContent() {
   const id = params.id as string;
 
   const [chatbot, setChatbot] = useState<Chatbot | null>(null);
-  const [questions, setQuestions] = useState<Question[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -39,13 +38,6 @@ function EditPageContent() {
       }
       const chatbotData = await chatbotResponse.json();
       setChatbot(chatbotData.chatbot);
-
-      // Fetch questions
-      const questionsResponse = await fetch(`/api/chatbots/${id}/questions`);
-      if (questionsResponse.ok) {
-        const questionsData = await questionsResponse.json();
-        setQuestions(questionsData.questions || []);
-      }
     } catch (error) {
       console.error('Error fetching chatbot:', error);
       toast.error('Failed to load chatbot');
@@ -77,67 +69,21 @@ function EditPageContent() {
     }
   };
 
-  const handleAddQuestion = async (q: Omit<Question, 'id' | 'chatbot_id' | 'is_active' | 'created_at' | 'updated_at'>) => {
-    try {
-      const response = await fetch(`/api/chatbots/${id}/questions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(q),
-      });
+  const handleSaveContext = async (context: string) => {
+    if (!chatbot) return;
 
-      if (!response.ok) {
-        throw new Error('Failed to create question');
-      }
+    const response = await fetch(`/api/chatbots/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ custom_context: context }),
+    });
 
-      const data = await response.json();
-      setQuestions([...questions, data.question]);
-      toast.success('Question added successfully');
-    } catch (error) {
-      console.error('Error adding question:', error);
-      toast.error('Failed to add question');
+    if (!response.ok) {
+      throw new Error('Failed to save context');
     }
-  };
 
-  const handleUpdateQuestion = async (
-    questionId: string,
-    updates: Partial<Pick<Question, 'question' | 'answer' | 'keywords'>>
-  ) => {
-    try {
-      const response = await fetch(`/api/questions/${questionId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to update question');
-      }
-
-      const data = await response.json();
-      setQuestions(questions.map(q => q.id === questionId ? data.question : q));
-      toast.success('Question updated successfully');
-    } catch (error) {
-      console.error('Error updating question:', error);
-      toast.error('Failed to update question');
-    }
-  };
-
-  const handleDeleteQuestion = async (questionId: string) => {
-    try {
-      const response = await fetch(`/api/questions/${questionId}`, {
-        method: 'DELETE',
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to delete question');
-      }
-
-      setQuestions(questions.filter(q => q.id !== questionId));
-      toast.success('Question deleted successfully');
-    } catch (error) {
-      console.error('Error deleting question:', error);
-      toast.error('Failed to delete question');
-    }
+    const data = await response.json();
+    setChatbot(data.chatbot);
   };
 
   if (isLoading) {
@@ -176,7 +122,7 @@ function EditPageContent() {
             Back to Dashboard
           </Button>
           <h1 className="text-3xl font-bold text-gray-900">{chatbot.name}</h1>
-          <p className="text-gray-600 mt-1">Customize your chatbot settings and Q&A</p>
+          <p className="text-gray-600 mt-1">Customize your chatbot settings and context</p>
         </div>
 
         {/* Three-column Layout */}
@@ -189,14 +135,12 @@ function EditPageContent() {
             />
           </div>
 
-          {/* Center: Q&A */}
+          {/* Center: Custom Context */}
           <div className="lg:col-span-4">
-            <QAManager
+            <CustomContextEditor
               chatbotId={id}
-              questions={questions}
-              onAdd={handleAddQuestion}
-              onUpdate={handleUpdateQuestion}
-              onDelete={handleDeleteQuestion}
+              initialContext={chatbot.custom_context || ''}
+              onSave={handleSaveContext}
             />
           </div>
 
@@ -205,7 +149,7 @@ function EditPageContent() {
             <WidgetPreview
               key={`${chatbot.id}-${chatbot.colors.primary}-${chatbot.colors.text}`}
               chatbot={chatbot}
-              questions={questions}
+              questions={[]}
             />
           </div>
         </div>

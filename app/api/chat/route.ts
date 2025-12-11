@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getCrawledContent, createMessage, getSessionById } from '@/lib/supabase/database';
+import { getCrawledContent, createMessage, getChatbotById } from '@/lib/supabase/database';
 import OpenAI from "openai";
 
 // Using GitHub Models (OpenAI SDK)
@@ -28,7 +28,11 @@ export async function POST(request: Request) {
             );
         }
 
-        // 1. Get Knowledge Base (Crawled Content)
+        // 1. Get Chatbot (for custom context)
+        const chatbot = await getChatbotById(chatbotId);
+        const customContext = chatbot?.custom_context || '';
+
+        // 2. Get Knowledge Base (Crawled Content)
         const crawledData = await getCrawledContent(chatbotId);
 
         let contextText = "";
@@ -41,14 +45,14 @@ export async function POST(request: Request) {
             console.log(`No knowledge base found for chatbot ${chatbotId}`);
         }
 
-        // 2. Prepare System Message with Knowledge Base
+        // 3. Prepare System Message with Knowledge Base + Custom Context
         const systemMessage = `You are a helpful customer support AI assistant for a website.
 Use the following Knowledge Base to answer the user's question.
 If the answer is found in the Knowledge Base, be concise and helpful.
 If the answer is NOT in the Knowledge Base, you may answer using general knowledge but be polite and mention you don't have specific info on that from the website.
 Always check the Knowledge Base first.
 
-Knowledge Base:
+${customContext ? `CUSTOM INSTRUCTIONS:\n${customContext}\n\n` : ''}Knowledge Base:
 ${contextText || "No website content available yet."}`;
 
         // 3. Call GitHub Models (OpenAI SDK)

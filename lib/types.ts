@@ -13,6 +13,7 @@ export interface Chatbot {
   };
   welcome_message: string;
   fallback_message: string;
+  custom_context: string; // Custom instructions for RAG
   is_active: boolean;
   created_at: string;
   updated_at: string;
