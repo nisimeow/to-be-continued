@@ -7,9 +7,12 @@ import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { Chatbot } from '@/lib/types';
 import ChatbotSettings from '@/components/dashboard/ChatbotSettings';
 import CustomContextEditor from '@/components/dashboard/CustomContextEditor';
+import CrawlWebsiteDialog from '@/components/dashboard/CrawlWebsiteDialog';
+import CrawlHistoryDialog from '@/components/dashboard/CrawlHistoryDialog';
 import WidgetPreview from '@/components/dashboard/WidgetPreview';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ArrowLeft, Globe, History, Database } from 'lucide-react';
 import { toast } from 'sonner';
 
 function EditPageContent() {
@@ -20,6 +23,8 @@ function EditPageContent() {
 
   const [chatbot, setChatbot] = useState<Chatbot | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [crawlDialogOpen, setCrawlDialogOpen] = useState(false);
+  const [crawlHistoryOpen, setCrawlHistoryOpen] = useState(false);
 
   useEffect(() => {
     if (user && id) {
@@ -122,7 +127,7 @@ function EditPageContent() {
             Back to Dashboard
           </Button>
           <h1 className="text-3xl font-bold text-gray-900">{chatbot.name}</h1>
-          <p className="text-gray-600 mt-1">Customize your chatbot settings and context</p>
+          <p className="text-gray-600 mt-1">Customize your chatbot settings and knowledge base</p>
         </div>
 
         {/* Three-column Layout */}
@@ -135,8 +140,34 @@ function EditPageContent() {
             />
           </div>
 
-          {/* Center: Custom Context */}
-          <div className="lg:col-span-4">
+          {/* Center: Knowledge Base + Custom Context */}
+          <div className="lg:col-span-4 space-y-6">
+            {/* Knowledge Base Card */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Database className="w-5 h-5 text-primary" />
+                  <CardTitle>Knowledge Base</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Crawl websites to build your chatbot&apos;s knowledge base. The AI will use this content to answer questions.
+                </p>
+                <div className="flex gap-2">
+                  <Button onClick={() => setCrawlDialogOpen(true)} variant="default">
+                    <Globe className="w-4 h-4 mr-2" />
+                    Crawl Website
+                  </Button>
+                  <Button onClick={() => setCrawlHistoryOpen(true)} variant="outline">
+                    <History className="w-4 h-4 mr-2" />
+                    View History
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Custom Context */}
             <CustomContextEditor
               chatbotId={id}
               initialContext={chatbot.custom_context || ''}
@@ -154,6 +185,24 @@ function EditPageContent() {
           </div>
         </div>
       </div>
+
+      {/* Crawl Website Dialog */}
+      <CrawlWebsiteDialog
+        open={crawlDialogOpen}
+        onOpenChange={setCrawlDialogOpen}
+        chatbotId={id}
+        onQuestionsAdd={async () => {
+          // Questions are no longer used, but dialog still saves to knowledge base
+          toast.success('Website content added to knowledge base');
+        }}
+      />
+
+      {/* Crawl History Dialog */}
+      <CrawlHistoryDialog
+        open={crawlHistoryOpen}
+        onOpenChange={setCrawlHistoryOpen}
+        chatbotId={id}
+      />
     </div>
   );
 }
